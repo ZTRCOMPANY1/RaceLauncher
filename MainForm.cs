@@ -9,6 +9,7 @@ using System.Media;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -75,6 +76,8 @@ namespace ZTRCompanyLauncher
         private Timer blinkTimer = null!;
         private Timer splashTimer = null!;
         private Timer bootAnimTimer = null!;
+        private Timer serverStatusTimer = null!;
+        private ServerStatusData? liveServerStatus;
         private SoundPlayer? startupSound;
         private SoundPlayer? confirmSound;
 
@@ -124,6 +127,10 @@ namespace ZTRCompanyLauncher
             bootAnimTimer = new Timer { Interval = 55 };
             bootAnimTimer.Tick += (s, e) => AnimateBoot();
 
+            serverStatusTimer = new Timer { Interval = 5000 };
+            serverStatusTimer.Tick += async (s, e) => await LoadLiveServerStatus();
+                await SendHeartbeatAsync("launcher", null);
+
             Resize += (s, e) => LayoutResponsive();
             KeyDown += (s, e) =>
             {
@@ -143,6 +150,8 @@ namespace ZTRCompanyLauncher
                 ShowHome();
                 await LoadOnlineData(false);
                 autoCheckTimer.Start();
+                serverStatusTimer.Start();
+                await LoadLiveServerStatus();
             };
         }
 
@@ -656,12 +665,14 @@ namespace ZTRCompanyLauncher
             return string.Join(Environment.NewLine, lines);
         }
 
-        private void ShowServers()
+        private async void ShowServers()
         {
             content.Controls.Clear();
 
+            await LoadLiveServerStatus();
+
             titleLabel = MakeLabel("Servidores", 40, 30, 800, 48, 27, true);
-            subtitleLabel = MakeLabel("Status, ping e jogadores conectados", 42, 80, 800, 28, 11);
+            subtitleLabel = MakeLabel("Status real do ZTR Launcher e dos jogos", 42, 80, 800, 28, 11);
 
             FlowLayoutPanel serversFlow = new FlowLayoutPanel
             {
@@ -673,50 +684,148 @@ namespace ZTRCompanyLauncher
                 BackColor = Color.FromArgb(10, 14, 22)
             };
 
-            if (onlineData?.servers == null || onlineData.servers.Count == 0)
+            if (liveServerStatus != null)
             {
-                Label empty = MakeLabel("Nenhum servidor configurado no JSON.", 10, 10, 700, 30, 12);
-                serversFlow.Controls.Add(empty);
-            }
-            else
-            {
-                foreach (ServerData server in onlineData.servers)
+                Panel launcherCard = BuildLiveServerCard(
+                    "ZTR Launcher",
+                    true,
+                    0,
+                    liveServerStatus.launcherOnline,
+                    0,
+                    "Pessoas online no launcher agora"
+                );
+
+                Panel gameCard = BuildLiveServerCard(
+                    "Race Low Poly",
+                    true,
+                    0,
+                    liveServerStatus.gameOnline,
+                    0,
+                    "Pessoas jogando agora"
+                );
+
+                serversFlow.Controls.Add(launcherCard);
+                serversFlow.Controls.Add(gameCard);
+
+                if (liveServerStatus.gameUsers != null && liveServerStatus.gameUsers.Count > 0)
                 {
-                    Panel card = new Panel
+                    Panel usersCard = new Panel
                     {
                         Width = Math.Max(700, serversFlow.Width - 35),
-                        Height = 105,
+                        Height = 150,
                         BackColor = Color.FromArgb(14, 20, 31),
                         Margin = new Padding(0, 0, 0, 14)
                     };
 
-                    Color dot = server.online ? Color.LimeGreen : Color.IndianRed;
+                    Label usersTitle = MakeLabel("Jogadores no jogo", 20, 15, 600, 30, 15, true);
+                    TextBox usersBox = MakeBox(20, 55, usersCard.Width - 40, 75);
+                    usersBox.Text = string.Join(Environment.NewLine, liveServerStatus.gameUsers.Select(u =>
+                        $"{u.playerName} (@{u.username}) - {u.gameId}"
+                    ));
 
-                    Label title = MakeLabel(server.name, 20, 15, 400, 30, 15, true);
-                    Label info = MakeLabel(
-                        $"Status: {(server.online ? "Online" : "Offline")}   |   Ping: {server.pingMs}ms   |   Jogadores: {server.playersOnline}/{server.maxPlayers}",
-                        20, 55, 650, 30, 11
-                    );
-
-                    Panel statusDot = new Panel
-                    {
-                        Left = card.Width - 55,
-                        Top = 35,
-                        Width = 22,
-                        Height = 22,
-                        BackColor = dot
-                    };
-
-                    card.Controls.Add(title);
-                    card.Controls.Add(info);
-                    card.Controls.Add(statusDot);
-                    serversFlow.Controls.Add(card);
+                    usersCard.Controls.Add(usersTitle);
+                    usersCard.Controls.Add(usersBox);
+                    serversFlow.Controls.Add(usersCard);
                 }
+            }
+            else if (onlineData?.servers != null && onlineData.servers.Count > 0)
+            {
+                foreach (ServerData server in onlineData.servers)
+                {
+                    serversFlow.Controls.Add(BuildLiveServerCard(
+                        server.name,
+                        server.online,
+                        server.pingMs,
+                        server.playersOnline,
+                        server.maxPlayers,
+                        "Dados vindos do ztr_launcher.json"
+                    ));
+                }
+            }
+            else
+            {
+                Label empty = MakeLabel(
+                    "Nenhum dado real encontrado. Configure serverStatusUrl no ztr_launcher.json.",
+                    10,
+                    10,
+                    900,
+                    30,
+                    12
+                );
+                serversFlow.Controls.Add(empty);
             }
 
             content.Controls.Add(titleLabel);
             content.Controls.Add(subtitleLabel);
             content.Controls.Add(serversFlow);
+        }
+
+        private Panel BuildLiveServerCard(string name, bool online, int pingMs, int playersOnline, int maxPlayers, string description)
+        {
+            Panel card = new Panel
+            {
+                Width = Math.Max(700, content.Width - 115),
+                Height = 115,
+                BackColor = Color.FromArgb(14, 20, 31),
+                Margin = new Padding(0, 0, 0, 14)
+            };
+
+            Color dot = online ? Color.LimeGreen : Color.IndianRed;
+
+            string playersText = maxPlayers > 0
+                ? $"{playersOnline}/{maxPlayers}"
+                : playersOnline.ToString();
+
+            string pingText = pingMs > 0 ? $"{pingMs}ms" : "tempo real";
+
+            Label title = MakeLabel(name, 20, 15, 450, 30, 15, true);
+            Label info = MakeLabel(
+                $"Status: {(online ? "Online" : "Offline")}   |   Ping: {pingText}   |   Online: {playersText}",
+                20,
+                52,
+                720,
+                26,
+                11
+            );
+
+            Label desc = MakeLabel(description, 20, 78, 720, 24, 9);
+
+            Panel statusDot = new Panel
+            {
+                Left = card.Width - 55,
+                Top = 38,
+                Width = 22,
+                Height = 22,
+                BackColor = dot
+            };
+
+            card.Controls.Add(title);
+            card.Controls.Add(info);
+            card.Controls.Add(desc);
+            card.Controls.Add(statusDot);
+
+            return card;
+        }
+
+        private async Task LoadLiveServerStatus()
+        {
+            try
+            {
+                if (onlineData == null || string.IsNullOrWhiteSpace(onlineData.serverStatusUrl))
+                    return;
+
+                using HttpClient client = new HttpClient();
+                string json = await client.GetStringAsync(onlineData.serverStatusUrl + "?v=" + DateTime.Now.Ticks);
+
+                ServerStatusData? status = JsonSerializer.Deserialize<ServerStatusData>(json);
+
+                if (status != null)
+                    liveServerStatus = status;
+            }
+            catch
+            {
+                liveServerStatus = null;
+            }
         }
 
         private void ShowGames()
@@ -1285,11 +1394,12 @@ namespace ZTRCompanyLauncher
             return File.ReadAllText(file).Trim();
         }
 
-        private void PlaySelectedGame()
+        private async void PlaySelectedGame()
         {
             if (selectedGame == null) return;
 
-            string exe = Path.Combine(GetInstallPath(selectedGame), selectedGame.exeName);
+            GameData game = selectedGame;
+            string exe = Path.Combine(GetInstallPath(game), game.exeName);
 
             if (!File.Exists(exe))
             {
@@ -1297,23 +1407,91 @@ namespace ZTRCompanyLauncher
                 return;
             }
 
-            config.lastOnline = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
-
-            if (!config.playedHours.ContainsKey(selectedGame.id))
-                config.playedHours[selectedGame.id] = 0;
-
-            config.playedHours[selectedGame.id] += 0.1;
-
-            if (!config.achievements.Contains("Primeiro jogo iniciado"))
-                config.achievements.Add("Primeiro jogo iniciado");
-
-            SaveConfig(config);
-
-            Process.Start(new ProcessStartInfo
+            try
             {
-                FileName = exe,
-                WorkingDirectory = GetInstallPath(selectedGame)
-            });
+                config.lastOnline = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+
+                if (!config.achievements.Contains("Primeiro jogo iniciado"))
+                    config.achievements.Add("Primeiro jogo iniciado");
+
+                SaveConfig(config);
+
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = exe,
+                    WorkingDirectory = GetInstallPath(game),
+                    UseShellExecute = true
+                };
+
+                Process? process = Process.Start(startInfo);
+
+                if (process == null)
+                {
+                    MessageBox.Show("Não foi possível iniciar o jogo.");
+                    return;
+                }
+
+                DateTime startTime = DateTime.Now;
+
+                statusLabel.Text = "JOGANDO: " + game.name;
+                playButton.Enabled = false;
+
+                while (!process.HasExited)
+                {
+                    await SendHeartbeatAsync("game", game.id);
+                    await Task.Delay(15000);
+                    process.Refresh();
+                }
+
+                DateTime endTime = DateTime.Now;
+                TimeSpan playedTime = endTime - startTime;
+
+                double playedHours = Math.Max(0, playedTime.TotalHours);
+
+                if (!config.playedHours.ContainsKey(game.id))
+                    config.playedHours[game.id] = 0;
+
+                config.playedHours[game.id] += playedHours;
+                config.lastOnline = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+
+                if (playedTime.TotalMinutes >= 1 && !config.achievements.Contains("Jogou por 1 minuto"))
+                    config.achievements.Add("Jogou por 1 minuto");
+
+                if (config.playedHours[game.id] >= 1 && !config.achievements.Contains("1 hora jogada"))
+                    config.achievements.Add("1 hora jogada");
+
+                SaveConfig(config);
+
+                ShowNotification(
+                    "Sessão finalizada",
+                    $"{game.name}: {FormatPlayedTime(playedTime)} adicionados ao perfil.",
+                    "session-" + game.id + "-" + DateTime.Now.Ticks
+                );
+
+                RefreshGamePage();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro ao iniciar/monitorar o jogo:\n" + ex.Message);
+            }
+            finally
+            {
+                if (playButton != null)
+                    playButton.Enabled = selectedGame != null && IsGameInstalled(selectedGame);
+
+                statusLabel.Text = "ONLINE";
+            }
+        }
+
+        private string FormatPlayedTime(TimeSpan time)
+        {
+            if (time.TotalHours >= 1)
+                return $"{(int)time.TotalHours}h {time.Minutes}min";
+
+            if (time.TotalMinutes >= 1)
+                return $"{time.Minutes}min {time.Seconds}s";
+
+            return $"{time.Seconds}s";
         }
 
         private void OpenSelectedGameFolder()
@@ -1342,6 +1520,46 @@ namespace ZTRCompanyLauncher
                     p.WaitForExit();
                 }
                 catch { }
+            }
+        }
+
+
+        private async Task SendHeartbeatAsync(string place, string? gameId)
+        {
+            try
+            {
+                if (onlineData == null)
+                    return;
+
+                string url = "";
+
+                if (place == "launcher")
+                    url = onlineData.launcherHeartbeatUrl;
+
+                if (place == "game")
+                    url = onlineData.gameHeartbeatUrl;
+
+                if (string.IsNullOrWhiteSpace(url))
+                    return;
+
+                var payload = new
+                {
+                    username = config.username,
+                    playerName = config.playerName,
+                    place = place,
+                    gameId = gameId ?? "",
+                    launcherVersion = CURRENT_LAUNCHER_VERSION,
+                    time = DateTime.UtcNow.ToString("o")
+                };
+
+                string json = JsonSerializer.Serialize(payload);
+
+                using HttpClient client = new HttpClient();
+                using StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
+                await client.PostAsync(url, content);
+            }
+            catch
+            {
             }
         }
 
@@ -1795,6 +2013,9 @@ del ""%~f0""
             public string launcherVersion { get; set; } = "";
             public string launcherUpdateUrl { get; set; } = "";
             public string launcherSha256 { get; set; } = "";
+            public string serverStatusUrl { get; set; } = "";
+            public string launcherHeartbeatUrl { get; set; } = "";
+            public string gameHeartbeatUrl { get; set; } = "";
             public List<NewsData> news { get; set; } = new();
             public List<GameData> games { get; set; } = new();
             public List<EventData> events { get; set; } = new();
@@ -1839,6 +2060,25 @@ del ""%~f0""
             public string bannerUrl { get; set; } = "";
             public bool maintenance { get; set; } = false;
             public bool forceUpdate { get; set; } = true;
+        }
+
+
+        public class ServerStatusData
+        {
+            public int launcherOnline { get; set; } = 0;
+            public int gameOnline { get; set; } = 0;
+            public List<HeartbeatUserData> launcherUsers { get; set; } = new();
+            public List<HeartbeatUserData> gameUsers { get; set; } = new();
+        }
+
+        public class HeartbeatUserData
+        {
+            public string username { get; set; } = "";
+            public string playerName { get; set; } = "";
+            public string place { get; set; } = "";
+            public string gameId { get; set; } = "";
+            public string launcherVersion { get; set; } = "";
+            public string time { get; set; } = "";
         }
 
         public class LauncherConfig

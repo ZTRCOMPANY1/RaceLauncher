@@ -1,0 +1,42 @@
+{
+  "launcherVersion": "1.0.0",
+  "launcherUpdateUrl": "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/ZTRCompanyLauncher.exe",
+  "launcherSha256": "",
+  "serverStatusUrl": "https://SEU-SERVIDOR.onrender.com/status",
+  "launcherHeartbeatUrl": "https://SEU-SERVIDOR.onrender.com/heartbeat/launcher",
+  "gameHeartbeatUrl": "https://SEU-SERVIDOR.onrender.com/heartbeat/game",
+  "news": [
+    {
+      "type": "aviso",
+      "title": "Status em tempo real",
+      "message": "A aba Servidores agora busca GET /status automaticamente.",
+      "url": ""
+    }
+  ],
+  "events": [],
+  "servers": [
+    {
+      "name": "Fallback JSON",
+      "online": true,
+      "pingMs": 0,
+      "playersOnline": 0,
+      "maxPlayers": 0
+    }
+  ],
+  "games": [
+    {
+      "id": "race-low-poly",
+      "name": "Race Low Poly",
+      "version": "0.006",
+      "exeName": "Race Low Poly.exe",
+      "downloadUrl": "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/game.zip",
+      "sha256": "",
+      "versionFileName": "game_version.txt",
+      "iconUrl": "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/icon.png",
+      "bannerUrl": "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/banner.png",
+      "changelog": "Servidores em tempo real via GET /status.",
+      "maintenance": false,
+      "forceUpdate": true
+    }
+  ]
+}

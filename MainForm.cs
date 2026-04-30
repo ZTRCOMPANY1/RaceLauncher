@@ -107,6 +107,7 @@ namespace ZTRCompanyLauncher
 
         public MainForm()
         {
+            
             configFile = Path.Combine(appData, "config.json");
             tempFolder = Path.Combine(appData, "_temp");
 
@@ -121,6 +122,7 @@ namespace ZTRCompanyLauncher
             BackColor = Color.FromArgb(5, 6, 8);
             KeyPreview = true;
             DoubleBuffered = true;
+            this.Icon = new Icon("ztr_logo.ico");
             FormBorderStyle = FormBorderStyle.None;
             Padding = new Padding(1);
 

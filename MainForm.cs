@@ -115,7 +115,7 @@ namespace ZTRCompanyLauncher
 
             Text = "ZTR Company Launcher";
             MinimumSize = new Size(1100, 700);
-            Width = 1280;
+            Width = 1340;
             Height = 886;
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(5, 6, 8);
@@ -304,18 +304,24 @@ namespace ZTRCompanyLauncher
             minimizeButton.Click += (s, e) => WindowState = FormWindowState.Minimized;
             maximizeButton.Click += (s, e) =>
             {
-                WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
+                if (WindowState == FormWindowState.Maximized)
+                {
+                    WindowState = FormWindowState.Normal;
+                    Size = new Size(1247, 886);
+                    CenterToScreen();
+                }
+                else
+                {
+                    WindowState = FormWindowState.Maximized;
+                }
+
+                PositionWindowButtons();
             };
             closeButton.Click += (s, e) => Close();
 
-            topbar.MouseDown += (s, e) =>
-            {
-                if (e.Button == MouseButtons.Left)
-                {
-                    NativeReleaseCapture();
-                    NativeSendMessage(Handle, 0xA1, 0x2, 0);
-                }
-            };
+            topbar.MouseDown += (s, e) => DragWindow(e);
+            content.MouseDown += (s, e) => DragWindow(e);
+            topbar.Resize += (s, e) => PositionWindowButtons();
 
             topbar.Controls.Add(minimizeButton);
             topbar.Controls.Add(maximizeButton);
@@ -382,6 +388,7 @@ namespace ZTRCompanyLauncher
             root.Controls.Add(sidebar);
             Controls.Add(root);
 
+            PositionWindowButtons();
             LayoutResponsive();
         }
 
@@ -445,9 +452,49 @@ namespace ZTRCompanyLauncher
             return l;
         }
 
+
+
+
         [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "ReleaseCapture")]
         private static extern bool NativeReleaseCapture();
 
+
+
+        private void PositionWindowButtons()
+        {
+            if (topbar == null || minimizeButton == null || maximizeButton == null || closeButton == null)
+                return;
+
+            int gap = 8;
+            int right = topbar.Width - 18;
+
+            closeButton.Left = right - closeButton.Width;
+            maximizeButton.Left = closeButton.Left - gap - maximizeButton.Width;
+            minimizeButton.Left = maximizeButton.Left - gap - minimizeButton.Width;
+
+            minimizeButton.Top = 10;
+            maximizeButton.Top = 10;
+            closeButton.Top = 10;
+
+            closeButton.BringToFront();
+            maximizeButton.BringToFront();
+            minimizeButton.BringToFront();
+        }
+
+        private void DragWindow(MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left)
+                return;
+
+            try
+            {
+                NativeReleaseCapture();
+                NativeSendMessage(Handle, 0xA1, 0x2, 0);
+            }
+            catch
+            {
+            }
+        }
 
         [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageA")]
         private static extern int NativeSendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
@@ -546,12 +593,7 @@ namespace ZTRCompanyLauncher
 
         private void LayoutResponsive()
         {
-            if (minimizeButton != null)
-            {
-                closeButton.Left = Math.Max(40, ClientSize.Width - 56);
-                maximizeButton.Left = Math.Max(40, ClientSize.Width - 104);
-                minimizeButton.Left = Math.Max(40, ClientSize.Width - 152);
-            }
+            PositionWindowButtons();
 
             if (statusLabel != null)
                 statusLabel.Left = Math.Max(650, ClientSize.Width - 370);

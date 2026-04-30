@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DiscordRichPresence" Version="1.2.1.24" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="ztr_startup_chime.wav">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

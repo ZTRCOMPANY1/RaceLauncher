@@ -13,12 +13,17 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using DiscordRPC;
 
 namespace ZTRCompanyLauncher
 {
     public class MainForm : Form
     {
         private const string CURRENT_LAUNCHER_VERSION = "1.0.0";
+
+        // TROQUE PELO SEU APPLICATION ID DO DISCORD DEVELOPER PORTAL
+        // Discord Developer Portal > Applications > Sua aplicação > General Information > Application ID
+        private const string DISCORD_APPLICATION_ID = "1497385328728870932";
 
         private readonly string launcherJsonUrl =
             "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/ztr_launcher.json";
@@ -80,6 +85,8 @@ namespace ZTRCompanyLauncher
         private ServerStatusData? liveServerStatus;
         private SoundPlayer? startupSound;
         private SoundPlayer? confirmSound;
+        private DiscordRpcClient? discordClient;
+        private DateTime discordStartTime = DateTime.UtcNow;
 
         private bool busy = false;
         private bool isFullScreen = false;
@@ -146,6 +153,7 @@ namespace ZTRCompanyLauncher
             FormClosing += async (s, e) =>
             {
                 await SendOfflineAsync("launcher", null);
+                ClearDiscordPresence();
             };
 
             Resize += (s, e) => LayoutResponsive();
@@ -158,6 +166,8 @@ namespace ZTRCompanyLauncher
             Load += async (s, e) =>
             {
                 PlayStartupSound();
+                InitializeDiscordPresence();
+                SetDiscordLauncherPresence();
 
                 splash.Visible = true;
                 splash.BringToFront();
@@ -1854,6 +1864,7 @@ namespace ZTRCompanyLauncher
 
                 statusLabel.Text = "JOGANDO: " + game.name;
                 playButton.Enabled = false;
+                SetDiscordGamePresence(game.name);
 
                 await SendHeartbeatAsync("game", game.id);
                 await LoadLiveServerStatus();
@@ -1875,6 +1886,7 @@ namespace ZTRCompanyLauncher
 
                 await SendOfflineAsync("game", game.id);
                 await SendHeartbeatAsync("launcher", null);
+                SetDiscordLauncherPresence();
                 await LoadLiveServerStatus();
 
                 if (currentPage == "profile")
@@ -1916,6 +1928,7 @@ namespace ZTRCompanyLauncher
                 if (playButton != null)
                     playButton.Enabled = selectedGame != null && IsGameInstalled(selectedGame) && (!HasAccount() || IsLoggedIn());
 
+                SetDiscordLauncherPresence();
                 statusLabel.Text = "ONLINE";
             }
         }
@@ -2046,6 +2059,113 @@ namespace ZTRCompanyLauncher
 
             apiBaseUrl = "https://servidor-ztr-company-launcher.onrender.com";
             return apiBaseUrl;
+        }
+
+
+        private void InitializeDiscordPresence()
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(DISCORD_APPLICATION_ID) ||
+                    DISCORD_APPLICATION_ID == "COLOQUE_SEU_APPLICATION_ID_AQUI")
+                {
+                    return;
+                }
+
+                discordStartTime = DateTime.UtcNow;
+                discordClient = new DiscordRpcClient(DISCORD_APPLICATION_ID);
+                discordClient.Initialize();
+            }
+            catch
+            {
+                discordClient = null;
+            }
+        }
+
+        private void SetDiscordLauncherPresence()
+        {
+            try
+            {
+                if (discordClient == null || !discordClient.IsInitialized)
+                    return;
+
+                discordClient.SetPresence(new RichPresence()
+                {
+                    Details = "No ZTR Company Launcher",
+                    State = "Navegando pela biblioteca",
+                    Timestamps = new Timestamps(discordStartTime),
+                    Assets = new Assets()
+                    {
+                        LargeImageKey = "ztr_logo",
+                        LargeImageText = "ZTR Company Launcher",
+                        SmallImageKey = "online",
+                        SmallImageText = "Online no launcher"
+                    },
+                    Buttons = new DiscordRPC.Button[]
+                    {
+                        new DiscordRPC.Button()
+                        {
+                            Label = "ZTR Company",
+                            Url = "https://ztrcompany.site/downloads"
+                        }
+                    }
+                });
+            }
+            catch
+            {
+            }
+        }
+
+        private void SetDiscordGamePresence(string gameName)
+        {
+            try
+            {
+                if (discordClient == null || !discordClient.IsInitialized)
+                    return;
+
+                discordClient.SetPresence(new RichPresence()
+                {
+                    Details = "Jogando " + gameName,
+                    State = "Pelo ZTR Company Launcher",
+                    Timestamps = new Timestamps(DateTime.UtcNow),
+                    Assets = new Assets()
+                    {
+                        LargeImageKey = "race_low_poly",
+                        LargeImageText = gameName,
+                        SmallImageKey = "ztr_logo",
+                        SmallImageText = "ZTR Company"
+                    },
+                    Buttons = new DiscordRPC.Button[]
+                    {
+                        new DiscordRPC.Button()
+                        {
+                            Label = "Abrir página do jogo",
+                            Url = "https://ztrcompany.site/jogos"
+                        }
+                    }
+                });
+            }
+            catch
+            {
+            }
+        }
+
+        private void ClearDiscordPresence()
+        {
+            try
+            {
+                if (discordClient != null)
+                {
+                    if (discordClient.IsInitialized)
+                        discordClient.ClearPresence();
+
+                    discordClient.Dispose();
+                    discordClient = null;
+                }
+            }
+            catch
+            {
+            }
         }
 
         private async Task UpdateLauncher()
@@ -2358,7 +2478,7 @@ del ""%~f0""
             }
         }
 
-        public class ZButton : Button
+        public class ZButton : System.Windows.Forms.Button
         {
             public Color NormalColor { get; set; } = Color.FromArgb(42, 116, 255);
             public Color HoverColor { get; set; } = Color.FromArgb(70, 145, 255);

@@ -71,6 +71,7 @@ namespace ZTRCompanyLauncher
         private ZButton gamesButton = null!;
         private ZButton profileButton = null!;
         private ZButton serversButton = null!;
+        private ZButton adminButton = null!;
         private ZButton fullscreenButton = null!;
         private ZButton launcherUpdateButton = null!;
         private ZButton installButton = null!;
@@ -260,6 +261,7 @@ namespace ZTRCompanyLauncher
             gamesButton = MakeSideButton("🎮   JOGOS", 28, 325);
             serversButton = MakeSideButton("🌐   SERVIDORES", 28, 405);
             profileButton = MakeSideButton("👤   PERFIL", 28, 485);
+            adminButton = MakeSideButton("🧭   ADMIN", 28, 565);
 
             Panel sideStatus = new RoundedPanel
             {
@@ -316,6 +318,7 @@ namespace ZTRCompanyLauncher
             sidebar.Controls.Add(gamesButton);
             sidebar.Controls.Add(serversButton);
             sidebar.Controls.Add(profileButton);
+            sidebar.Controls.Add(adminButton);
             sidebar.Controls.Add(sideStatus);
 
             minimizeButton = MakeWindowButton("—", 0);
@@ -402,6 +405,7 @@ namespace ZTRCompanyLauncher
             gamesButton.Click += (s, e) => ShowGames();
             profileButton.Click += (s, e) => ShowProfile();
             serversButton.Click += (s, e) => ShowServers();
+            adminButton.Click += (s, e) => OpenAdminDashboard();
 
             root.Controls.Add(content);
             root.Controls.Add(topbar);
@@ -410,6 +414,7 @@ namespace ZTRCompanyLauncher
             Controls.Add(root);
 
             PositionWindowButtons();
+            UpdateAdminButtonVisibility();
             LayoutResponsive();
         }
 
@@ -577,9 +582,12 @@ namespace ZTRCompanyLauncher
             foreach (Control c in splash.Controls)
                 c.Left = (ClientSize.Width - c.Width) / 2;
 
-            Control title = splash.Controls["BootTitle"];
-            Control subtitle = splash.Controls["BootSubtitle"];
-            Control loading = splash.Controls["BootLoading"];
+            Control? title = splash.Controls["BootTitle"];
+            Control? subtitle = splash.Controls["BootSubtitle"];
+            Control? loading = splash.Controls["BootLoading"];
+
+            if (title == null || subtitle == null || loading == null)
+                return;
 
             title.Top = (ClientSize.Height / 2) - 105;
             subtitle.Top = title.Bottom + 4;
@@ -821,6 +829,33 @@ namespace ZTRCompanyLauncher
             catch
             {
             }
+        }
+
+
+        private bool IsAdminUser()
+        {
+            return string.Equals(config.username, "ztremntb", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void UpdateAdminButtonVisibility()
+        {
+            if (adminButton == null)
+                return;
+
+            bool isAdmin = IsAdminUser();
+            adminButton.Visible = isAdmin;
+            adminButton.Enabled = isAdmin;
+        }
+
+        private void OpenAdminDashboard()
+        {
+            if (!IsAdminUser())
+            {
+                MessageBox.Show("Acesso negado. Apenas o usuário ztremntb pode abrir o painel admin.");
+                return;
+            }
+
+            OpenUrl(GetApiBaseUrl() + "/admin");
         }
 
         private void OpenUrl(string url)
@@ -1279,6 +1314,7 @@ namespace ZTRCompanyLauncher
             config.isLoggedIn = true;
             config.lastOnline = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
             SaveConfig(config);
+            UpdateAdminButtonVisibility();
         }
 
         private async Task<string> PostJsonAsync(string url, object payload)
@@ -1368,6 +1404,7 @@ namespace ZTRCompanyLauncher
                 config.isLoggedIn = false;
                 config.authToken = "";
                 SaveConfig(config);
+                UpdateAdminButtonVisibility();
                 ShowNotification("Logout", "Você saiu da conta.", "logout");
                 ShowProfile();
             };

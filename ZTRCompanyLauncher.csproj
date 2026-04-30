@@ -10,13 +10,12 @@
 
   <ItemGroup>
     <PackageReference Include="DiscordRichPresence" Version="1.2.1.24" />
-  
-    <None Update="ztr_logo.ico">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="ztr_logo.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="ztr_startup_chime.wav">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

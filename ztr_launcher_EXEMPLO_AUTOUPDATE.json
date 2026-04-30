@@ -1,0 +1,12 @@
+{
+  "launcherVersion": "1.0.1",
+  "launcherUpdateUrl": "https://SEU-LINK/launcher_update.zip",
+  "launcherSha256": "",
+  "serverStatusUrl": "https://servidor-ztr-company-launcher.onrender.com/status",
+  "launcherHeartbeatUrl": "https://servidor-ztr-company-launcher.onrender.com/heartbeat/launcher",
+  "gameHeartbeatUrl": "https://servidor-ztr-company-launcher.onrender.com/heartbeat/game",
+  "authApiUrl": "https://servidor-ztr-company-launcher.onrender.com",
+  "news": [],
+  "events": [],
+  "games": []
+}

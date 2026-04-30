@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZTR Admin Dashboard</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#07080b;color:#f5f7fb;font-family:Segoe UI,Arial,sans-serif}
+    header{padding:24px 34px;background:#0d0f14;border-bottom:1px solid #20232c;display:flex;justify-content:space-between;align-items:center}
+    h1{margin:0;font-size:24px}
+    input,button,textarea{border:0;border-radius:10px;padding:12px;background:#151923;color:#fff}
+    button{cursor:pointer;background:#fff;color:#000;font-weight:800}
+    .wrap{padding:28px;display:grid;gap:22px}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+    .card{background:#10131a;border:1px solid #252936;border-radius:18px;padding:18px}
+    .card h2{margin:0 0 12px;font-size:15px;color:#9aa3b5}
+    .num{font-size:32px;font-weight:900}
+    table{width:100%;border-collapse:collapse;background:#10131a;border-radius:18px;overflow:hidden}
+    th,td{padding:13px;border-bottom:1px solid #252936;text-align:left;font-size:14px}
+    th{color:#9aa3b5;background:#141821}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .danger{background:#ff4444;color:#fff}
+    .ok{background:#00d084;color:#00150b}
+    textarea{width:100%;min-height:90px;resize:vertical}
+  </style>
+</head>
+<body>
+<header>
+  <h1>🧭 ZTR Admin Dashboard</h1>
+  <div class="row">
+    <input id="key" placeholder="ADMIN_KEY" />
+    <button onclick="loadAll()">Atualizar</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="cards">
+    <div class="card"><h2>Usuários</h2><div id="users" class="num">-</div></div>
+    <div class="card"><h2>Banidos</h2><div id="banned" class="num">-</div></div>
+    <div class="card"><h2>Launcher online</h2><div id="launcherOnline" class="num">-</div></div>
+    <div class="card"><h2>Jogando</h2><div id="gameOnline" class="num">-</div></div>
+    <div class="card"><h2>Conquistas</h2><div id="achievements" class="num">-</div></div>
+  </section>
+
+  <section class="card">
+    <h2>Enviar notificação</h2>
+    <div class="row">
+      <input id="ntitle" placeholder="Título" style="min-width:260px">
+      <button onclick="sendNotification()">Enviar</button>
+    </div>
+    <br>
+    <textarea id="nmessage" placeholder="Mensagem"></textarea>
+  </section>
+
+  <section class="card">
+    <h2>Usuários</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Username</th><th>Nome</th><th>Status</th><th>Último acesso</th><th>Ação</th></tr></thead>
+      <tbody id="usersTable"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Conquistas recentes</h2>
+    <table>
+      <thead><tr><th>Usuário</th><th>Jogo</th><th>Conquista</th><th>Data</th></tr></thead>
+      <tbody id="achTable"></tbody>
+    </table>
+  </section>
+</div>
+
+<script>
+const api = location.origin;
+function k(){return document.getElementById('key').value.trim()}
+
+async function get(path){
+  const r = await fetch(api+path+(path.includes('?')?'&':'?')+'key='+encodeURIComponent(k()));
+  return await r.json();
+}
+async function post(path, body){
+  const r = await fetch(api+path,{method:'POST',headers:{'Content-Type':'application/json','x-admin-key':k()},body:JSON.stringify(body)});
+  return await r.json();
+}
+
+async function loadAll(){
+  const stats = await get('/admin/stats');
+  if(!stats.ok){alert(stats.error||'Erro');return}
+  users.textContent = stats.users;
+  banned.textContent = stats.banned;
+  launcherOnline.textContent = stats.launcherOnline;
+  gameOnline.textContent = stats.gameOnline;
+  achievements.textContent = stats.achievements;
+
+  const u = await get('/admin/users');
+  usersTable.innerHTML = '';
+  u.users.forEach(x=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${x.id}</td><td>${x.username}</td><td>${x.playerName}</td><td>${x.banned?'BANIDO':'OK'}</td><td>${x.lastSeen||'-'}</td>
+    <td><button class="${x.banned?'ok':'danger'}" onclick="ban('${x.username}',${!x.banned})">${x.banned?'Desbanir':'Banir'}</button></td>`;
+    usersTable.appendChild(tr);
+  });
+
+  const a = await get('/admin/achievements');
+  achTable.innerHTML = '';
+  a.achievements.forEach(x=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${x.username}</td><td>${x.game_id}</td><td>${x.title}</td><td>${x.unlocked_at}</td>`;
+    achTable.appendChild(tr);
+  });
+}
+
+async function ban(username,banned){
+  await post('/admin/ban',{username,banned});
+  loadAll();
+}
+
+async function sendNotification(){
+  await post('/admin/notify',{title:ntitle.value,message:nmessage.value});
+  alert('Notificação enviada');
+  ntitle.value=''; nmessage.value='';
+}
+
+setInterval(()=>{ if(k()) loadAll(); }, 8000);
+</script>
+</body>
+</html>

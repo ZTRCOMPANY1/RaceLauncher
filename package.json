@@ -1,6 +1,12 @@
 {
+  "name": "servidor-ztr-company-launcher",
+  "version": "3.0.0",
+  "description": "ZTR Launcher API com admin, conquistas e status",
+  "main": "server.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

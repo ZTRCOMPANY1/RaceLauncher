@@ -1,0 +1,56 @@
+{
+  "launcherVersion": "1.0.0",
+  "launcherUpdateUrl": "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/ZTRCompanyLauncher.exe",
+  "launcherSha256": "",
+  "serverStatusUrl": "https://servidor-ztr-company-launcher.onrender.com/status",
+  "launcherHeartbeatUrl": "https://servidor-ztr-company-launcher.onrender.com/heartbeat/launcher",
+  "gameHeartbeatUrl": "https://servidor-ztr-company-launcher.onrender.com/heartbeat/game",
+  "news": [
+    {
+      "type": "aviso",
+      "title": "Bem-vindo ao ZTR Launcher",
+      "message": "Conta obrigatória, perfil, servidores e heartbeat ativados.",
+      "url": ""
+    }
+  ],
+  "events": [
+    {
+      "title": "Evento de corrida",
+      "message": "Evento especial começa hoje!",
+      "active": true
+    }
+  ],
+  "servers": [
+    {
+      "name": "ZTR Launcher",
+      "online": true,
+      "pingMs": 20,
+      "playersOnline": 0,
+      "maxPlayers": 0
+    },
+    {
+      "name": "Race Low Poly",
+      "online": true,
+      "pingMs": 35,
+      "playersOnline": 0,
+      "maxPlayers": 50
+    }
+  ],
+  "games": [
+    {
+      "id": "race-low-poly",
+      "name": "Race Low Poly",
+      "version": "0.006",
+      "exeName": "Race Low Poly.exe",
+      "downloadUrl": "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/V0.006(DEV).zip",
+      "sha256": "",
+      "versionFileName": "game_version.txt",
+      "iconUrl": "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/icone.png",
+      "bannerUrl": "https://ztrcompany1.github.io/SITE-MENSAGEM-NO-JOGO-RACE-LOW-POLY/banner.png",
+      "changelog": "Conta obrigatória e tempo real de jogo.",
+      "maintenance": false,
+      "forceUpdate": true
+    }
+  ],
+  "authApiUrl": "https://servidor-ztr-company-launcher.onrender.com"
+}

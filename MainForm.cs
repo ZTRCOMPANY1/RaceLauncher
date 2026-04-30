@@ -86,6 +86,9 @@ namespace ZTRCompanyLauncher
         private bool blink = false;
         private int bootStep = 0;
         private string lastNotificationKey = "";
+        private string currentPage = "home";
+        private string apiBaseUrl = "";
+        private int lastRealPingMs = 0;
 
         private Rectangle oldBounds;
         private FormBorderStyle oldBorder;
@@ -128,8 +131,22 @@ namespace ZTRCompanyLauncher
             bootAnimTimer.Tick += (s, e) => AnimateBoot();
 
             serverStatusTimer = new Timer { Interval = 5000 };
-            serverStatusTimer.Tick += async (s, e) => await LoadLiveServerStatus();
+            serverStatusTimer.Tick += async (s, e) =>
+            {
+                await LoadLiveServerStatus();
                 await SendHeartbeatAsync("launcher", null);
+
+                if (currentPage == "servers")
+                    ShowServers();
+
+                if (currentPage == "profile" && IsLoggedIn())
+                    ShowProfile();
+            };
+
+            FormClosing += async (s, e) =>
+            {
+                await SendOfflineAsync("launcher", null);
+            };
 
             Resize += (s, e) => LayoutResponsive();
             KeyDown += (s, e) =>
@@ -152,6 +169,10 @@ namespace ZTRCompanyLauncher
                 autoCheckTimer.Start();
                 serverStatusTimer.Start();
                 await LoadLiveServerStatus();
+                await SendHeartbeatAsync("launcher", null);
+
+                if (!HasAccount() || !IsLoggedIn())
+                    ShowProfile();
             };
         }
 
@@ -189,15 +210,15 @@ namespace ZTRCompanyLauncher
 
             homeButton = MakeTopButton("INÍCIO", 270);
             gamesButton = MakeTopButton("JOGOS", 385);
-            profileButton = MakeTopButton("PERFIL", 500);
-            serversButton = MakeTopButton("SERVIDORES", 615);
-            serversButton.Width = 130;
+            profileButton = MakeTopButton("👤", 500);
+            serversButton = MakeTopButton("🌐", 615);
+            serversButton.Width = 150;
 
-            fullscreenButton = MakeTopButton("TELA CHEIA", 760);
+            fullscreenButton = MakeTopButton("TELA CHEIA", 790);
             fullscreenButton.Width = 135;
             fullscreenButton.Click += (s, e) => ToggleFullscreen();
 
-            launcherUpdateButton = MakeTopButton("UPDATE LAUNCHER", 910);
+            launcherUpdateButton = MakeTopButton("UPDATE LAUNCHER", 940);
             launcherUpdateButton.Width = 185;
             launcherUpdateButton.Visible = false;
             launcherUpdateButton.Click += async (s, e) => await UpdateLauncher();
@@ -510,6 +531,7 @@ namespace ZTRCompanyLauncher
         private void ShowHome()
         {
             content.Controls.Clear();
+            currentPage = "home";
 
             titleLabel = MakeLabel("Início", 40, 30, 800, 48, 27, true);
             subtitleLabel = MakeLabel("Notícias, eventos e status da ZTR Company", 42, 80, 800, 28, 11);
@@ -546,84 +568,398 @@ namespace ZTRCompanyLauncher
         private void ShowProfile()
         {
             content.Controls.Clear();
+            currentPage = "profile";
 
-            titleLabel = MakeLabel("Perfil ZTR Company", 40, 30, 800, 48, 27, true);
+            if (string.IsNullOrWhiteSpace(config.authToken))
+            {
+                ShowAuthScreen();
+                return;
+            }
 
-            Panel loginPanel = MakeCard(40, 100, 420, 420);
+            ShowProfileDashboard();
+        }
 
-            Label nameLabel = MakeLabel("Nome do jogador:", 25, 25, 300, 25, 10, true);
-            TextBox nameInput = MakeBox(25, 55, 360, 35);
-            nameInput.Multiline = false;
-            nameInput.Text = config.playerName;
+        private void ShowAuthScreen()
+        {
+            titleLabel = MakeLabel("Conta ZTR Company", 40, 30, 800, 48, 27, true);
+            subtitleLabel = MakeLabel("Login e registro reais usando PostgreSQL no Render.", 42, 80, 900, 28, 11);
 
-            Label avatarLabel = MakeLabel("URL do avatar:", 25, 105, 300, 25, 10, true);
-            TextBox avatarInput = MakeBox(25, 135, 360, 35);
-            avatarInput.Multiline = false;
-            avatarInput.Text = config.avatarUrl;
+            Panel loginCard = MakeCard(40, 125, 500, 430);
+            Label loginTitle = MakeLabel("ENTRAR", 30, 25, 400, 34, 18, true);
+
+            Label loginUserLabel = MakeLabel("Username:", 30, 85, 420, 25, 10, true);
+            TextBox loginUser = MakeBox(30, 115, 420, 35);
+            loginUser.Multiline = false;
+            loginUser.ReadOnly = false;
+            loginUser.ScrollBars = ScrollBars.None;
+
+            Label loginPassLabel = MakeLabel("Senha:", 30, 170, 420, 25, 10, true);
+            TextBox loginPass = MakeBox(30, 200, 420, 35);
+            loginPass.Multiline = false;
+            loginPass.ReadOnly = false;
+            loginPass.ScrollBars = ScrollBars.None;
+            loginPass.PasswordChar = '●';
+
+            ZButton loginButton = MakeButton("Entrar", 30, 285, 150, 44);
+            loginButton.Click += async (s, e) =>
+            {
+                await LoginOnlineAsync(loginUser.Text.Trim(), loginPass.Text);
+            };
+
+            loginCard.Controls.Add(loginTitle);
+            loginCard.Controls.Add(loginUserLabel);
+            loginCard.Controls.Add(loginUser);
+            loginCard.Controls.Add(loginPassLabel);
+            loginCard.Controls.Add(loginPass);
+            loginCard.Controls.Add(loginButton);
+
+            Panel registerCard = MakeCard(580, 125, content.Width - 620, 430);
+            Label regTitle = MakeLabel("CRIAR CONTA", 30, 25, 400, 34, 18, true);
+
+            Label regUserLabel = MakeLabel("Username:", 30, 85, 420, 25, 10, true);
+            TextBox regUser = MakeBox(30, 115, 420, 35);
+            regUser.Multiline = false;
+            regUser.ReadOnly = false;
+            regUser.ScrollBars = ScrollBars.None;
+
+            Label regNameLabel = MakeLabel("Nome exibido:", 30, 160, 420, 25, 10, true);
+            TextBox regName = MakeBox(30, 190, 420, 35);
+            regName.Multiline = false;
+            regName.ReadOnly = false;
+            regName.ScrollBars = ScrollBars.None;
+
+            Label regPassLabel = MakeLabel("Senha:", 30, 235, 420, 25, 10, true);
+            TextBox regPass = MakeBox(30, 265, 420, 35);
+            regPass.Multiline = false;
+            regPass.ReadOnly = false;
+            regPass.ScrollBars = ScrollBars.None;
+            regPass.PasswordChar = '●';
+
+            ZButton registerButton = MakeButton("Criar conta", 30, 340, 170, 44);
+            registerButton.Click += async (s, e) =>
+            {
+                await RegisterOnlineAsync(regUser.Text.Trim(), regName.Text.Trim(), regPass.Text);
+            };
+
+            registerCard.Controls.Add(regTitle);
+            registerCard.Controls.Add(regUserLabel);
+            registerCard.Controls.Add(regUser);
+            registerCard.Controls.Add(regNameLabel);
+            registerCard.Controls.Add(regName);
+            registerCard.Controls.Add(regPassLabel);
+            registerCard.Controls.Add(regPass);
+            registerCard.Controls.Add(registerButton);
+
+            content.Controls.Add(titleLabel);
+            content.Controls.Add(subtitleLabel);
+            content.Controls.Add(loginCard);
+            content.Controls.Add(registerCard);
+        }
+
+        private async Task RegisterOnlineAsync(string username, string playerName, string password)
+        {
+            try
+            {
+                if (username.Length < 3)
+                {
+                    MessageBox.Show("Username precisa ter pelo menos 3 caracteres.");
+                    return;
+                }
+
+                if (password.Length < 4)
+                {
+                    MessageBox.Show("Senha precisa ter pelo menos 4 caracteres.");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(playerName))
+                    playerName = username;
+
+                string url = GetApiBaseUrl() + "/auth/register";
+                var payload = new { username = username, playerName = playerName, password = password };
+                string response = await PostJsonAsync(url, payload);
+
+                AuthResponse? auth = JsonSerializer.Deserialize<AuthResponse>(response);
+
+                if (auth == null || !auth.ok)
+                {
+                    MessageBox.Show(auth?.error ?? "Erro ao criar conta.");
+                    return;
+                }
+
+                ApplyAuth(auth);
+                ShowNotification("Conta criada", "Conta salva no PostgreSQL.", "register-postgres");
+                ShowProfile();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro no registro online:\\n" + ex.Message);
+            }
+        }
+
+        private async Task LoginOnlineAsync(string username, string password)
+        {
+            try
+            {
+                string url = GetApiBaseUrl() + "/auth/login";
+                var payload = new { username = username, password = password };
+                string response = await PostJsonAsync(url, payload);
+
+                AuthResponse? auth = JsonSerializer.Deserialize<AuthResponse>(response);
+
+                if (auth == null || !auth.ok)
+                {
+                    MessageBox.Show(auth?.error ?? "Login inválido.");
+                    return;
+                }
+
+                ApplyAuth(auth);
+                await SendHeartbeatAsync("launcher", null);
+                ShowNotification("Login feito", "Você entrou na conta ZTR.", "login-postgres");
+                ShowProfile();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro no login online:\\n" + ex.Message);
+            }
+        }
+
+        private void ApplyAuth(AuthResponse auth)
+        {
+            config.authToken = auth.token;
+            config.userId = auth.user?.id ?? 0;
+            config.username = auth.user?.username ?? "";
+            config.playerName = auth.user?.playerName ?? config.username;
+            config.avatarUrl = auth.user?.avatarUrl ?? "";
+            config.bio = auth.user?.bio ?? "";
+            config.profileCreatedAt = auth.user?.createdAt ?? "Online";
+            config.isLoggedIn = true;
+            config.lastOnline = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+            SaveConfig(config);
+        }
+
+        private async Task<string> PostJsonAsync(string url, object payload)
+        {
+            using HttpClient client = new HttpClient();
+            string json = JsonSerializer.Serialize(payload);
+            using StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
+            HttpResponseMessage response = await client.PostAsync(url, content);
+            return await response.Content.ReadAsStringAsync();
+        }
+
+        private void ShowProfileDashboard()
+        {
+            titleLabel = MakeLabel("👤 Perfil ZTR Company", 40, 30, 800, 48, 27, true);
+            subtitleLabel = MakeLabel("Conta online, status, bio, estatísticas e conquistas", 42, 80, 900, 28, 11);
+
+            Panel heroPanel = MakeCard(40, 125, content.Width - 80, 205);
 
             PictureBox avatarBox = new PictureBox
             {
-                Left = 25,
-                Top = 190,
-                Width = 96,
-                Height = 96,
+                Left = 30,
+                Top = 35,
+                Width = 128,
+                Height = 128,
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = Color.FromArgb(22, 31, 45)
             };
 
-            Label accountInfo = MakeLabel("", 140, 190, 240, 110, 10);
+            Label playerName = MakeLabel(config.playerName, 180, 35, heroPanel.Width - 220, 38, 22, true);
+            HeartbeatUserData? myStatus = GetMyLiveStatus();
+            string liveStatusText = GetLiveStatusText(myStatus);
 
-            ZButton saveButton = MakeButton("Salvar Login", 25, 325, 160, 42);
-            ZButton logoutButton = MakeButton("Sair da conta", 205, 325, 160, 42);
+            Label userInfo = MakeLabel("@" + config.username + "  •  " + liveStatusText, 182, 78, heroPanel.Width - 220, 26, 10);
+            Label statusInfo = MakeLabel("Status real: " + liveStatusText, 182, 106, heroPanel.Width - 220, 26, 10);
+            Label bioText = MakeLabel(
+                string.IsNullOrWhiteSpace(config.bio) ? "Sem bio. Edite sua bio abaixo." : config.bio,
+                182,
+                135,
+                heroPanel.Width - 220,
+                55,
+                10
+            );
+
+            heroPanel.Controls.Add(avatarBox);
+            heroPanel.Controls.Add(playerName);
+            heroPanel.Controls.Add(userInfo);
+            heroPanel.Controls.Add(statusInfo);
+            heroPanel.Controls.Add(bioText);
+
+            if (!string.IsNullOrWhiteSpace(config.avatarUrl))
+                _ = LoadImageAsync(config.avatarUrl, avatarBox);
+
+            Panel editPanel = MakeCard(40, 355, 430, 430);
+
+            Label editTitle = MakeLabel("Editar perfil online", 25, 25, 350, 30, 16, true);
+
+            Label nameLabel = MakeLabel("Nome exibido:", 25, 75, 300, 25, 10, true);
+            TextBox nameInput = MakeBox(25, 105, 370, 35);
+            nameInput.Multiline = false;
+            nameInput.ReadOnly = false;
+            nameInput.ScrollBars = ScrollBars.None;
+            nameInput.Text = config.playerName;
+
+            Label avatarLabel = MakeLabel("URL do avatar:", 25, 155, 300, 25, 10, true);
+            TextBox avatarInput = MakeBox(25, 185, 370, 35);
+            avatarInput.Multiline = false;
+            avatarInput.ReadOnly = false;
+            avatarInput.ScrollBars = ScrollBars.None;
+            avatarInput.Text = config.avatarUrl;
+
+            Label bioLabel = MakeLabel("Bio:", 25, 235, 300, 25, 10, true);
+            TextBox bioInput = MakeBox(25, 265, 370, 80);
+            bioInput.ReadOnly = false;
+            bioInput.Text = config.bio;
+
+            ZButton saveButton = MakeButton("Salvar online", 25, 365, 165, 42);
+            ZButton logoutButton = MakeButton("Sair", 210, 365, 120, 42);
 
             saveButton.Click += async (s, e) =>
             {
-                config.playerName = string.IsNullOrWhiteSpace(nameInput.Text) ? "Player ZTR" : nameInput.Text.Trim();
-                config.avatarUrl = avatarInput.Text.Trim();
-                config.lastOnline = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
-                SaveConfig(config);
-                ShowNotification("Login salvo", "Conta local salva com sucesso.", "login");
-                ShowProfile();
-                await Task.CompletedTask;
+                await UpdateProfileOnlineAsync(nameInput.Text.Trim(), avatarInput.Text.Trim(), bioInput.Text.Trim());
             };
 
-            logoutButton.Click += (s, e) =>
+            logoutButton.Click += async (s, e) =>
             {
-                config.playerName = "Player ZTR";
-                config.avatarUrl = "";
+                await SendOfflineAsync("launcher", null);
+                config.isLoggedIn = false;
+                config.authToken = "";
                 SaveConfig(config);
-                ShowNotification("Logout", "Você saiu da conta local.", "logout");
+                ShowNotification("Logout", "Você saiu da conta.", "logout");
                 ShowProfile();
             };
 
-            loginPanel.Controls.Add(nameLabel);
-            loginPanel.Controls.Add(nameInput);
-            loginPanel.Controls.Add(avatarLabel);
-            loginPanel.Controls.Add(avatarInput);
-            loginPanel.Controls.Add(avatarBox);
-            loginPanel.Controls.Add(accountInfo);
-            loginPanel.Controls.Add(saveButton);
-            loginPanel.Controls.Add(logoutButton);
+            editPanel.Controls.Add(editTitle);
+            editPanel.Controls.Add(nameLabel);
+            editPanel.Controls.Add(nameInput);
+            editPanel.Controls.Add(avatarLabel);
+            editPanel.Controls.Add(avatarInput);
+            editPanel.Controls.Add(bioLabel);
+            editPanel.Controls.Add(bioInput);
+            editPanel.Controls.Add(saveButton);
+            editPanel.Controls.Add(logoutButton);
 
-            Panel statsPanel = MakeCard(500, 100, content.Width - 540, 420);
+            Panel statsPanel = MakeCard(500, 355, content.Width - 540, 430);
             Label statsTitle = MakeLabel("Estatísticas", 25, 25, 600, 30, 16, true);
-            TextBox statsBox = MakeBox(25, 70, statsPanel.Width - 50, 310);
+            TextBox statsBox = MakeBox(25, 70, Math.Max(300, statsPanel.Width - 50), 320);
             statsBox.Text = BuildProfileStatsText();
 
             statsPanel.Controls.Add(statsTitle);
             statsPanel.Controls.Add(statsBox);
 
             content.Controls.Add(titleLabel);
-            content.Controls.Add(loginPanel);
+            content.Controls.Add(subtitleLabel);
+            content.Controls.Add(heroPanel);
+            content.Controls.Add(editPanel);
             content.Controls.Add(statsPanel);
+        }
 
-            accountInfo.Text =
-                $"Jogador: {config.playerName}{Environment.NewLine}" +
-                $"Última vez online: {config.lastOnline}{Environment.NewLine}" +
-                $"Conquistas: {config.achievements.Count}";
+        private async Task UpdateProfileOnlineAsync(string playerName, string avatarUrl, string bio)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(config.authToken))
+                {
+                    ShowProfile();
+                    return;
+                }
 
-            if (!string.IsNullOrWhiteSpace(config.avatarUrl))
-                _ = LoadImageAsync(config.avatarUrl, avatarBox);
+                var payload = new
+                {
+                    token = config.authToken,
+                    playerName = string.IsNullOrWhiteSpace(playerName) ? config.username : playerName,
+                    avatarUrl = avatarUrl,
+                    bio = bio
+                };
+
+                string response = await PostJsonAsync(GetApiBaseUrl() + "/profile/update", payload);
+                AuthResponse? auth = JsonSerializer.Deserialize<AuthResponse>(response);
+
+                if (auth == null || !auth.ok)
+                {
+                    MessageBox.Show(auth?.error ?? "Erro ao salvar perfil.");
+                    return;
+                }
+
+                ApplyAuth(auth);
+                ShowNotification("Perfil salvo", "Perfil atualizado no PostgreSQL.", "profile-online-saved");
+                ShowProfile();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro ao salvar perfil online:\\n" + ex.Message);
+            }
+        }
+
+        private bool HasAccount()
+        {
+            return !string.IsNullOrWhiteSpace(config.authToken) ||
+                   (!string.IsNullOrWhiteSpace(config.username) && !string.IsNullOrWhiteSpace(config.passwordHash));
+        }
+
+        private bool IsLoggedIn()
+        {
+            return !string.IsNullOrWhiteSpace(config.authToken) && config.isLoggedIn;
+        }
+
+        private string HashPassword(string password)
+        {
+            using SHA256 sha = SHA256.Create();
+            byte[] bytes = sha.ComputeHash(Encoding.UTF8.GetBytes("ZTR-SALT-" + password));
+            return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+        }
+
+        private bool VerifyPassword(string password, string hash)
+        {
+            return HashPassword(password).Equals(hash, StringComparison.OrdinalIgnoreCase);
+        }
+
+
+        private HeartbeatUserData? GetMyLiveStatus()
+        {
+            if (liveServerStatus == null || string.IsNullOrWhiteSpace(config.username))
+                return null;
+
+            HeartbeatUserData? inGame = liveServerStatus.gameUsers?
+                .FirstOrDefault(u => string.Equals(u.username, config.username, StringComparison.OrdinalIgnoreCase));
+
+            if (inGame != null)
+                return inGame;
+
+            HeartbeatUserData? inLauncher = liveServerStatus.launcherUsers?
+                .FirstOrDefault(u => string.Equals(u.username, config.username, StringComparison.OrdinalIgnoreCase));
+
+            return inLauncher;
+        }
+
+        private string GetLiveStatusText(HeartbeatUserData? user)
+        {
+            if (user == null)
+                return "⚫ Offline";
+
+            if (user.place == "game")
+            {
+                string gameName = GetGameNameById(user.gameId);
+                return "🎮 Jogando " + gameName;
+            }
+
+            if (user.place == "launcher")
+                return "🟢 Online no launcher";
+
+            return "⚫ Offline";
+        }
+
+        private string GetGameNameById(string gameId)
+        {
+            if (onlineData?.games == null)
+                return gameId;
+
+            GameData? game = onlineData.games.FirstOrDefault(g => g.id == gameId);
+
+            if (game == null)
+                return gameId;
+
+            return game.name;
         }
 
         private string BuildProfileStatsText()
@@ -633,6 +969,7 @@ namespace ZTRCompanyLauncher
             lines.Add("=== PERFIL ===");
             lines.Add("Nome: " + config.playerName);
             lines.Add("Última vez online: " + config.lastOnline);
+            lines.Add("Status atual: " + GetLiveStatusText(GetMyLiveStatus()));
             lines.Add("");
 
             lines.Add("=== JOGOS ===");
@@ -668,11 +1005,12 @@ namespace ZTRCompanyLauncher
         private async void ShowServers()
         {
             content.Controls.Clear();
+            currentPage = "servers";
 
             await LoadLiveServerStatus();
 
-            titleLabel = MakeLabel("Servidores", 40, 30, 800, 48, 27, true);
-            subtitleLabel = MakeLabel("Status real do ZTR Launcher e dos jogos", 42, 80, 800, 28, 11);
+            titleLabel = MakeLabel("🌐 Servidores", 40, 30, 800, 48, 27, true);
+            subtitleLabel = MakeLabel("Status real: PostgreSQL + heartbeat + ping real", 42, 80, 900, 28, 11);
 
             FlowLayoutPanel serversFlow = new FlowLayoutPanel
             {
@@ -686,66 +1024,87 @@ namespace ZTRCompanyLauncher
 
             if (liveServerStatus != null)
             {
-                Panel launcherCard = BuildLiveServerCard(
+                serversFlow.Controls.Add(BuildLiveServerCard(
                     "ZTR Launcher",
                     true,
-                    0,
+                    lastRealPingMs,
                     liveServerStatus.launcherOnline,
                     0,
                     "Pessoas online no launcher agora"
-                );
+                ));
 
-                Panel gameCard = BuildLiveServerCard(
+                serversFlow.Controls.Add(BuildLiveServerCard(
                     "Race Low Poly",
                     true,
-                    0,
+                    lastRealPingMs,
                     liveServerStatus.gameOnline,
                     0,
                     "Pessoas jogando agora"
-                );
+                ));
 
-                serversFlow.Controls.Add(launcherCard);
-                serversFlow.Controls.Add(gameCard);
-
-                if (liveServerStatus.gameUsers != null && liveServerStatus.gameUsers.Count > 0)
+                Panel usersCard = new Panel
                 {
-                    Panel usersCard = new Panel
+                    Width = Math.Max(850, serversFlow.Width - 35),
+                    Height = 360,
+                    BackColor = Color.FromArgb(14, 20, 31),
+                    Margin = new Padding(0, 0, 0, 14)
+                };
+
+                Label usersTitle = MakeLabel("👥 Pessoas online e contas registradas", 20, 15, 700, 30, 15, true);
+
+                FlowLayoutPanel usersFlow = new FlowLayoutPanel
+                {
+                    Left = 20,
+                    Top = 55,
+                    Width = usersCard.Width - 40,
+                    Height = 285,
+                    AutoScroll = true,
+                    BackColor = Color.FromArgb(14, 20, 31)
+                };
+
+                List<HeartbeatUserData> people = new List<HeartbeatUserData>();
+
+                if (liveServerStatus.launcherUsers != null)
+                    people.AddRange(liveServerStatus.launcherUsers);
+
+                if (liveServerStatus.gameUsers != null)
+                    people.AddRange(liveServerStatus.gameUsers);
+
+                if (liveServerStatus.accounts != null)
+                {
+                    foreach (AccountData acc in liveServerStatus.accounts)
                     {
-                        Width = Math.Max(700, serversFlow.Width - 35),
-                        Height = 150,
-                        BackColor = Color.FromArgb(14, 20, 31),
-                        Margin = new Padding(0, 0, 0, 14)
-                    };
-
-                    Label usersTitle = MakeLabel("Jogadores no jogo", 20, 15, 600, 30, 15, true);
-                    TextBox usersBox = MakeBox(20, 55, usersCard.Width - 40, 75);
-                    usersBox.Text = string.Join(Environment.NewLine, liveServerStatus.gameUsers.Select(u =>
-                        $"{u.playerName} (@{u.username}) - {u.gameId}"
-                    ));
-
-                    usersCard.Controls.Add(usersTitle);
-                    usersCard.Controls.Add(usersBox);
-                    serversFlow.Controls.Add(usersCard);
+                        bool already = people.Any(p => p.username == acc.username);
+                        if (!already)
+                        {
+                            people.Add(new HeartbeatUserData
+                            {
+                                username = acc.username,
+                                playerName = acc.playerName,
+                                avatarUrl = acc.avatarUrl,
+                                bio = acc.bio,
+                                place = "offline",
+                                gameId = ""
+                            });
+                        }
+                    }
                 }
-            }
-            else if (onlineData?.servers != null && onlineData.servers.Count > 0)
-            {
-                foreach (ServerData server in onlineData.servers)
+
+                foreach (HeartbeatUserData person in people
+                    .GroupBy(p => p.username)
+                    .Select(g => g.OrderByDescending(x => x.place == "game").First()))
                 {
-                    serversFlow.Controls.Add(BuildLiveServerCard(
-                        server.name,
-                        server.online,
-                        server.pingMs,
-                        server.playersOnline,
-                        server.maxPlayers,
-                        "Dados vindos do ztr_launcher.json"
-                    ));
+                    usersFlow.Controls.Add(BuildPersonCard(person));
                 }
+
+                usersCard.Controls.Add(usersTitle);
+                usersCard.Controls.Add(usersFlow);
+                serversFlow.Controls.Add(usersCard);
             }
             else
             {
                 Label empty = MakeLabel(
-                    "Nenhum dado real encontrado. Configure serverStatusUrl no ztr_launcher.json.",
+                    "Nenhum dado real encontrado. Verifique se /status está funcionando no Render.",
                     10,
                     10,
                     900,
@@ -758,6 +1117,50 @@ namespace ZTRCompanyLauncher
             content.Controls.Add(titleLabel);
             content.Controls.Add(subtitleLabel);
             content.Controls.Add(serversFlow);
+        }
+
+        private Panel BuildPersonCard(HeartbeatUserData person)
+        {
+            Panel card = new Panel
+            {
+                Width = 330,
+                Height = 92,
+                BackColor = Color.FromArgb(22, 31, 45),
+                Margin = new Padding(0, 0, 12, 12),
+                Cursor = Cursors.Hand
+            };
+
+            string status = person.place == "game"
+                ? "Jogando " + GetGameNameById(person.gameId)
+                : person.place == "launcher"
+                    ? "Online no launcher"
+                    : "Offline";
+
+            Label name = MakeLabel(person.playerName, 15, 12, 290, 24, 11, true);
+            Label user = MakeLabel("@" + person.username, 15, 38, 290, 22, 9);
+            Label st = MakeLabel(status, 15, 62, 290, 22, 9);
+
+            card.Controls.Add(name);
+            card.Controls.Add(user);
+            card.Controls.Add(st);
+
+            card.Click += (s, e) => ShowPersonProfile(person);
+            name.Click += (s, e) => ShowPersonProfile(person);
+            user.Click += (s, e) => ShowPersonProfile(person);
+            st.Click += (s, e) => ShowPersonProfile(person);
+
+            return card;
+        }
+
+        private void ShowPersonProfile(HeartbeatUserData person)
+        {
+            MessageBox.Show(
+                "Perfil: " + person.playerName + "\\n" +
+                "Username: @" + person.username + "\\n" +
+                "Status: " + (person.place == "game" ? "Jogando " + person.gameId : person.place == "launcher" ? "Online no launcher" : "Offline") + "\\n" +
+                "Bio: " + (string.IsNullOrWhiteSpace(person.bio) ? "Sem bio" : person.bio),
+                "Perfil do jogador"
+            );
         }
 
         private Panel BuildLiveServerCard(string name, bool online, int pingMs, int playersOnline, int maxPlayers, string description)
@@ -811,11 +1214,17 @@ namespace ZTRCompanyLauncher
         {
             try
             {
-                if (onlineData == null || string.IsNullOrWhiteSpace(onlineData.serverStatusUrl))
-                    return;
+                string statusUrl = onlineData?.serverStatusUrl ?? "";
+
+                if (string.IsNullOrWhiteSpace(statusUrl) || statusUrl.Contains("/heartbeat/"))
+                    statusUrl = GetApiBaseUrl() + "/status";
 
                 using HttpClient client = new HttpClient();
-                string json = await client.GetStringAsync(onlineData.serverStatusUrl + "?v=" + DateTime.Now.Ticks);
+                Stopwatch sw = Stopwatch.StartNew();
+                string json = await client.GetStringAsync(statusUrl + "?v=" + DateTime.Now.Ticks);
+                sw.Stop();
+
+                lastRealPingMs = (int)sw.ElapsedMilliseconds;
 
                 ServerStatusData? status = JsonSerializer.Deserialize<ServerStatusData>(json);
 
@@ -825,12 +1234,14 @@ namespace ZTRCompanyLauncher
             catch
             {
                 liveServerStatus = null;
+                lastRealPingMs = 0;
             }
         }
 
         private void ShowGames()
         {
             content.Controls.Clear();
+            currentPage = "games";
 
             titleLabel = MakeLabel("Biblioteca", 40, 28, 780, 48, 27, true);
 
@@ -961,6 +1372,7 @@ namespace ZTRCompanyLauncher
                 DetectNotifications(onlineData, newOnlineData);
 
                 onlineData = newOnlineData;
+                apiBaseUrl = GetApiBaseUrl();
                 config.lastOnline = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
                 SaveConfig(config);
 
@@ -1191,14 +1603,14 @@ namespace ZTRCompanyLauncher
             if (needsUpdate)
             {
                 updateButton.Enabled = !busy;
-                playButton.Enabled = !selectedGame.forceUpdate && !busy;
+                playButton.Enabled = !selectedGame.forceUpdate && !busy && IsLoggedIn();
                 statusLabel.Text = selectedGame.forceUpdate ? "UPDATE OBRIGATÓRIO" : "UPDATE DISPONÍVEL";
                 StartBlink();
                 return;
             }
 
             updateButton.Enabled = false;
-            playButton.Enabled = !busy;
+            playButton.Enabled = !busy && IsLoggedIn();
             statusLabel.Text = "JOGO ATUALIZADO";
             StopBlink();
         }
@@ -1398,6 +1810,13 @@ namespace ZTRCompanyLauncher
         {
             if (selectedGame == null) return;
 
+            if (!IsLoggedIn())
+            {
+                ShowNotification("Conta obrigatória", "Crie ou entre na conta ZTR para jogar.", "account-required");
+                ShowProfile();
+                return;
+            }
+
             GameData game = selectedGame;
             string exe = Path.Combine(GetInstallPath(game), game.exeName);
 
@@ -1436,12 +1855,30 @@ namespace ZTRCompanyLauncher
                 statusLabel.Text = "JOGANDO: " + game.name;
                 playButton.Enabled = false;
 
+                await SendHeartbeatAsync("game", game.id);
+                await LoadLiveServerStatus();
+
+                if (currentPage == "profile")
+                    ShowProfile();
+
                 while (!process.HasExited)
                 {
                     await SendHeartbeatAsync("game", game.id);
-                    await Task.Delay(15000);
+                    await Task.Delay(5000);
                     process.Refresh();
+
+                    await LoadLiveServerStatus();
+
+                    if (currentPage == "profile")
+                        ShowProfile();
                 }
+
+                await SendOfflineAsync("game", game.id);
+                await SendHeartbeatAsync("launcher", null);
+                await LoadLiveServerStatus();
+
+                if (currentPage == "profile")
+                    ShowProfile();
 
                 DateTime endTime = DateTime.Now;
                 TimeSpan playedTime = endTime - startTime;
@@ -1477,7 +1914,7 @@ namespace ZTRCompanyLauncher
             finally
             {
                 if (playButton != null)
-                    playButton.Enabled = selectedGame != null && IsGameInstalled(selectedGame);
+                    playButton.Enabled = selectedGame != null && IsGameInstalled(selectedGame) && (!HasAccount() || IsLoggedIn());
 
                 statusLabel.Text = "ONLINE";
             }
@@ -1528,39 +1965,87 @@ namespace ZTRCompanyLauncher
         {
             try
             {
-                if (onlineData == null)
-                    return;
-
                 string url = "";
 
-                if (place == "launcher")
-                    url = onlineData.launcherHeartbeatUrl;
+                if (onlineData != null)
+                {
+                    if (place == "launcher")
+                        url = onlineData.launcherHeartbeatUrl;
 
-                if (place == "game")
-                    url = onlineData.gameHeartbeatUrl;
+                    if (place == "game")
+                        url = onlineData.gameHeartbeatUrl;
+                }
 
                 if (string.IsNullOrWhiteSpace(url))
-                    return;
+                    url = GetApiBaseUrl() + (place == "game" ? "/heartbeat/game" : "/heartbeat/launcher");
 
                 var payload = new
                 {
-                    username = config.username,
+                    token = config.authToken,
+                    username = string.IsNullOrWhiteSpace(config.username) ? "guest" : config.username,
                     playerName = config.playerName,
+                    avatarUrl = config.avatarUrl,
+                    bio = config.bio,
                     place = place,
                     gameId = gameId ?? "",
+                    gameName = string.IsNullOrWhiteSpace(gameId) ? "" : GetGameNameById(gameId),
                     launcherVersion = CURRENT_LAUNCHER_VERSION,
                     time = DateTime.UtcNow.ToString("o")
                 };
 
-                string json = JsonSerializer.Serialize(payload);
-
-                using HttpClient client = new HttpClient();
-                using StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
-                await client.PostAsync(url, content);
+                await PostJsonAsync(url, payload);
             }
             catch
             {
             }
+        }
+
+        private async Task SendOfflineAsync(string place, string? gameId)
+        {
+            try
+            {
+                var payload = new
+                {
+                    token = config.authToken,
+                    username = config.username,
+                    place = place,
+                    gameId = gameId ?? ""
+                };
+
+                await PostJsonAsync(GetApiBaseUrl() + "/offline", payload);
+            }
+            catch
+            {
+            }
+        }
+
+        private string GetApiBaseUrl()
+        {
+            if (!string.IsNullOrWhiteSpace(apiBaseUrl))
+                return apiBaseUrl.TrimEnd('/');
+
+            string source =
+                onlineData?.authApiUrl ??
+                onlineData?.serverStatusUrl ??
+                onlineData?.launcherHeartbeatUrl ??
+                onlineData?.gameHeartbeatUrl ??
+                "";
+
+            if (!string.IsNullOrWhiteSpace(source))
+            {
+                try
+                {
+                    Uri uri = new Uri(source);
+                    apiBaseUrl = uri.Scheme + "://" + uri.Host;
+                    return apiBaseUrl;
+                }
+                catch
+                {
+                }
+            }
+
+            apiBaseUrl = "https://servidor-ztr-company-launcher.onrender.com";
+            return apiBaseUrl;
         }
 
         private async Task UpdateLauncher()
@@ -1802,6 +2287,14 @@ del ""%~f0""
                         loaded.gameInstallPaths ??= new Dictionary<string, string>();
                         loaded.playedHours ??= new Dictionary<string, double>();
                         loaded.achievements ??= new List<string>();
+                        loaded.username ??= "";
+                        loaded.passwordHash ??= "";
+                        loaded.authToken ??= "";
+                        loaded.playerName ??= "Player ZTR";
+                        loaded.avatarUrl ??= "";
+                        loaded.bio ??= "";
+                        loaded.profileCreatedAt ??= "Nunca";
+                        loaded.lastOnline ??= "Nunca";
                         return loaded;
                     }
                 }
@@ -2016,6 +2509,7 @@ del ""%~f0""
             public string serverStatusUrl { get; set; } = "";
             public string launcherHeartbeatUrl { get; set; } = "";
             public string gameHeartbeatUrl { get; set; } = "";
+            public string authApiUrl { get; set; } = "";
             public List<NewsData> news { get; set; } = new();
             public List<GameData> games { get; set; } = new();
             public List<EventData> events { get; set; } = new();
@@ -2069,22 +2563,53 @@ del ""%~f0""
             public int gameOnline { get; set; } = 0;
             public List<HeartbeatUserData> launcherUsers { get; set; } = new();
             public List<HeartbeatUserData> gameUsers { get; set; } = new();
+            public List<AccountData> accounts { get; set; } = new();
         }
 
         public class HeartbeatUserData
         {
             public string username { get; set; } = "";
             public string playerName { get; set; } = "";
+            public string avatarUrl { get; set; } = "";
+            public string bio { get; set; } = "";
             public string place { get; set; } = "";
             public string gameId { get; set; } = "";
             public string launcherVersion { get; set; } = "";
             public string time { get; set; } = "";
         }
 
+
+        public class AuthResponse
+        {
+            public bool ok { get; set; } = false;
+            public string error { get; set; } = "";
+            public string token { get; set; } = "";
+            public AccountData? user { get; set; }
+        }
+
+        public class AccountData
+        {
+            public int id { get; set; } = 0;
+            public string username { get; set; } = "";
+            public string playerName { get; set; } = "";
+            public string avatarUrl { get; set; } = "";
+            public string bio { get; set; } = "";
+            public string createdAt { get; set; } = "";
+        }
+
         public class LauncherConfig
         {
+            public bool isLoggedIn { get; set; } = false;
+            public string username { get; set; } = "";
+            public string passwordHash { get; set; } = "";
+            public string authToken { get; set; } = "";
+            public int userId { get; set; } = 0;
+
             public string playerName { get; set; } = "Player ZTR";
             public string avatarUrl { get; set; } = "";
+            public string bio { get; set; } = "";
+            public string profileCreatedAt { get; set; } = "Nunca";
+
             public string lastOnline { get; set; } = "Nunca";
             public Dictionary<string, string> gameInstallPaths { get; set; } = new();
             public Dictionary<string, double> playedHours { get; set; } = new();

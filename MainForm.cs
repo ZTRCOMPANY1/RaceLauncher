@@ -40,6 +40,11 @@ namespace ZTRCompanyLauncher
 
         private Panel root = null!;
         private Panel topbar = null!;
+        private Panel sidebar = null!;
+        private Panel footerBar = null!;
+        private ZButton closeButton = null!;
+        private ZButton minimizeButton = null!;
+        private ZButton maximizeButton = null!;
         private Panel content = null!;
         private Panel splash = null!;
         private FlowLayoutPanel gameList = null!;
@@ -110,12 +115,14 @@ namespace ZTRCompanyLauncher
 
             Text = "ZTR Company Launcher";
             MinimumSize = new Size(1100, 700);
-            Width = 1260;
+            Width = 1280;
             Height = 886;
             StartPosition = FormStartPosition.CenterScreen;
-            BackColor = Color.FromArgb(10, 14, 22);
+            BackColor = Color.FromArgb(5, 6, 8);
             KeyPreview = true;
             DoubleBuffered = true;
+            FormBorderStyle = FormBorderStyle.None;
+            Padding = new Padding(1);
 
             BuildInterface();
             BuildSplash();
@@ -143,11 +150,9 @@ namespace ZTRCompanyLauncher
                 await LoadLiveServerStatus();
                 await SendHeartbeatAsync("launcher", null);
 
-                if (currentPage == "servers")
-                    ShowServers();
-
-                if (currentPage == "profile" && IsLoggedIn())
-                    ShowProfile();
+                // Não reconstruir páginas a cada 5s para evitar o efeito de sumir/aparecer.
+                // Os dados continuam sendo atualizados em segundo plano.
+                UpdateCurrentPageLightweight();
             };
 
             FormClosing += async (s, e) =>
@@ -188,60 +193,182 @@ namespace ZTRCompanyLauncher
 
         private void BuildInterface()
         {
-            root = new Panel
+            root = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(7, 8, 10) };
+            sidebar = new Panel { Dock = DockStyle.Left, Width = 300, BackColor = Color.FromArgb(10, 11, 14) };
+            topbar = new Panel { Dock = DockStyle.Top, Height = 54, BackColor = Color.FromArgb(7, 8, 10) };
+            footerBar = new Panel { Dock = DockStyle.Bottom, Height = 42, BackColor = Color.FromArgb(8, 9, 11) };
+            content = new SteamContentPanel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(7, 8, 10) };
+
+            Label logoIcon = new Label
             {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(10, 14, 22)
+                Text = "Z",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 42, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Left = 72,
+                Top = 42,
+                Width = 150,
+                Height = 72
             };
 
-            topbar = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 78,
-                BackColor = Color.FromArgb(16, 22, 34)
-            };
-
-            content = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(10, 14, 22)
-            };
-
-            logoLabel = new Label
+            Label logoMain = new Label
             {
                 Text = "ZTR COMPANY",
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 21, FontStyle.Bold),
-                Left = 26,
-                Top = 18,
-                Width = 230,
-                Height = 42
+                Font = new Font("Segoe UI", 16, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Left = 20,
+                Top = 120,
+                Width = 260,
+                Height = 32
             };
 
-            homeButton = MakeTopButton("INÍCIO", 270);
-            gamesButton = MakeTopButton("JOGOS", 385);
-            profileButton = MakeTopButton("👤", 500);
-            serversButton = MakeTopButton("🌐", 615);
-            serversButton.Width = 150;
+            Label logoSub = new Label
+            {
+                Text = "L A U N C H E R",
+                ForeColor = Color.FromArgb(175, 178, 185),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Left = 20,
+                Top = 152,
+                Width = 260,
+                Height = 24
+            };
 
-            fullscreenButton = MakeTopButton("TELA CHEIA", 790);
-            fullscreenButton.Width = 135;
-            fullscreenButton.Click += (s, e) => ToggleFullscreen();
+            homeButton = MakeSideButton("⌂   INÍCIO", 28, 245);
+            gamesButton = MakeSideButton("🎮   JOGOS", 28, 325);
+            serversButton = MakeSideButton("🌐   SERVIDORES", 28, 405);
+            profileButton = MakeSideButton("👤   PERFIL", 28, 485);
 
-            launcherUpdateButton = MakeTopButton("UPDATE LAUNCHER", 940);
-            launcherUpdateButton.Width = 185;
-            launcherUpdateButton.Visible = false;
-            launcherUpdateButton.Click += async (s, e) => await UpdateLauncher();
+            Panel sideStatus = new RoundedPanel
+            {
+                Left = 28,
+                Width = 244,
+                Height = 100,
+                Top = 650,
+                BackColor = Color.FromArgb(14, 15, 18),
+                BorderColor = Color.FromArgb(34, 36, 42),
+                Radius = 16
+            };
+
+            Label statusDot = new Label
+            {
+                Text = "●",
+                ForeColor = Color.LimeGreen,
+                Font = new Font("Segoe UI", 18, FontStyle.Bold),
+                Left = 18,
+                Top = 22,
+                Width = 40,
+                Height = 36
+            };
+
+            Label statusText = new Label
+            {
+                Text = "STATUS\nONLINE",
+                ForeColor = Color.FromArgb(210, 212, 216),
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Left = 58,
+                Top = 22,
+                Width = 150,
+                Height = 52
+            };
+
+            Label statusSmall = new Label
+            {
+                Text = "Todos os sistemas operacionais",
+                ForeColor = Color.FromArgb(128, 130, 136),
+                Font = new Font("Segoe UI", 8, FontStyle.Regular),
+                Left = 58,
+                Top = 72,
+                Width = 175,
+                Height = 20
+            };
+
+            sideStatus.Controls.Add(statusDot);
+            sideStatus.Controls.Add(statusText);
+            sideStatus.Controls.Add(statusSmall);
+
+            sidebar.Controls.Add(logoIcon);
+            sidebar.Controls.Add(logoMain);
+            sidebar.Controls.Add(logoSub);
+            sidebar.Controls.Add(homeButton);
+            sidebar.Controls.Add(gamesButton);
+            sidebar.Controls.Add(serversButton);
+            sidebar.Controls.Add(profileButton);
+            sidebar.Controls.Add(sideStatus);
+
+            minimizeButton = MakeWindowButton("—", 0);
+            maximizeButton = MakeWindowButton("□", 0);
+            closeButton = MakeWindowButton("×", 0);
+
+            minimizeButton.Click += (s, e) => WindowState = FormWindowState.Minimized;
+            maximizeButton.Click += (s, e) =>
+            {
+                WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
+            };
+            closeButton.Click += (s, e) => Close();
+
+            topbar.MouseDown += (s, e) =>
+            {
+                if (e.Button == MouseButtons.Left)
+                {
+                    NativeReleaseCapture();
+                    NativeSendMessage(Handle, 0xA1, 0x2, 0);
+                }
+            };
+
+            topbar.Controls.Add(minimizeButton);
+            topbar.Controls.Add(maximizeButton);
+            topbar.Controls.Add(closeButton);
+
+            Label footer = new Label
+            {
+                Text = "VERSÃO 1.0.0     |     © 2024 ZTR COMPANY. TODOS OS DIREITOS RESERVADOS.",
+                ForeColor = Color.FromArgb(125, 128, 135),
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                Left = 28,
+                Top = 12,
+                Width = 650,
+                Height = 20
+            };
+
+            FlowLayoutPanel socialPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                Width = 380,
+                Height = 42,
+                FlowDirection = FlowDirection.RightToLeft,
+                BackColor = Color.FromArgb(8, 9, 11),
+                Padding = new Padding(0, 9, 18, 0)
+            };
+
+            Label xLink = MakeFooterLink("X");
+            Label ytLink = MakeFooterLink("YouTube");
+            Label instaLink = MakeFooterLink("Instagram");
+            Label discordLink = MakeFooterLink("Discord");
+
+            xLink.Click += (s, e) => OpenUrl("https://x.com/");
+            ytLink.Click += (s, e) => OpenUrl("https://youtube.com/");
+            instaLink.Click += (s, e) => OpenUrl("https://instagram.com/");
+            discordLink.Click += (s, e) => OpenUrl("https://discord.com/");
+
+            socialPanel.Controls.Add(xLink);
+            socialPanel.Controls.Add(ytLink);
+            socialPanel.Controls.Add(instaLink);
+            socialPanel.Controls.Add(discordLink);
+
+            footerBar.Controls.Add(footer);
+            footerBar.Controls.Add(socialPanel);
 
             statusLabel = new Label
             {
-                Text = "Inicializando...",
-                ForeColor = Color.FromArgb(170, 185, 205),
+                Text = "● ONLINE",
+                ForeColor = Color.LimeGreen,
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
                 TextAlign = ContentAlignment.MiddleRight,
-                Top = 24,
+                Top = 16,
                 Width = 330,
-                Height = 28
+                Height = 24
             };
 
             homeButton.Click += (s, e) => ShowHome();
@@ -249,21 +376,81 @@ namespace ZTRCompanyLauncher
             profileButton.Click += (s, e) => ShowProfile();
             serversButton.Click += (s, e) => ShowServers();
 
-            topbar.Controls.Add(logoLabel);
-            topbar.Controls.Add(homeButton);
-            topbar.Controls.Add(gamesButton);
-            topbar.Controls.Add(profileButton);
-            topbar.Controls.Add(serversButton);
-            topbar.Controls.Add(fullscreenButton);
-            topbar.Controls.Add(launcherUpdateButton);
-            topbar.Controls.Add(statusLabel);
-
             root.Controls.Add(content);
             root.Controls.Add(topbar);
+            root.Controls.Add(footerBar);
+            root.Controls.Add(sidebar);
             Controls.Add(root);
 
             LayoutResponsive();
         }
+
+        private ZButton MakeSideButton(string text, int left, int top)
+        {
+            ZButton b = new ZButton
+            {
+                Text = text,
+                Left = left,
+                Top = top,
+                Width = 244,
+                Height = 58,
+                NormalColor = Color.FromArgb(18, 19, 23),
+                HoverColor = Color.FromArgb(36, 38, 44),
+                PressColor = Color.FromArgb(245, 245, 245),
+                DisabledColor = Color.FromArgb(45, 50, 60),
+                ForeColor = Color.FromArgb(230, 232, 236),
+                Font = new Font("Segoe UI", 11, FontStyle.Bold)
+            };
+            b.ApplyVisualState();
+            return b;
+        }
+
+        private ZButton MakeWindowButton(string text, int left)
+        {
+            ZButton b = new ZButton
+            {
+                Text = text,
+                Left = left,
+                Top = 10,
+                Width = 42,
+                Height = 34,
+                NormalColor = Color.FromArgb(7, 8, 10),
+                HoverColor = Color.FromArgb(38, 40, 46),
+                PressColor = Color.FromArgb(70, 70, 78),
+                DisabledColor = Color.Transparent,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 13, FontStyle.Bold)
+            };
+            b.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            b.ApplyVisualState();
+            return b;
+        }
+
+
+        private Label MakeFooterLink(string text)
+        {
+            Label l = new Label
+            {
+                Text = text,
+                AutoSize = true,
+                ForeColor = Color.FromArgb(220, 222, 226),
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(18, 0, 0, 0)
+            };
+
+            l.MouseEnter += (s, e) => l.ForeColor = Color.White;
+            l.MouseLeave += (s, e) => l.ForeColor = Color.FromArgb(220, 222, 226);
+
+            return l;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "ReleaseCapture")]
+        private static extern bool NativeReleaseCapture();
+
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageA")]
+        private static extern int NativeSendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
 
         private void BuildSplash()
         {
@@ -359,8 +546,19 @@ namespace ZTRCompanyLauncher
 
         private void LayoutResponsive()
         {
-            statusLabel.Left = Math.Max(860, ClientSize.Width - 360);
-            launcherUpdateButton.Left = Math.Min(910, Math.Max(760, ClientSize.Width - 560));
+            if (minimizeButton != null)
+            {
+                closeButton.Left = Math.Max(40, ClientSize.Width - 56);
+                maximizeButton.Left = Math.Max(40, ClientSize.Width - 104);
+                minimizeButton.Left = Math.Max(40, ClientSize.Width - 152);
+            }
+
+            if (statusLabel != null)
+                statusLabel.Left = Math.Max(650, ClientSize.Width - 370);
+
+            if (launcherUpdateButton != null)
+                launcherUpdateButton.Left = Math.Min(910, Math.Max(760, ClientSize.Width - 560));
+
             PositionSplash();
 
             if (newsBox != null && newsBox.Parent != null)
@@ -528,39 +726,310 @@ namespace ZTRCompanyLauncher
 
         private Panel MakeCard(int left, int top, int width, int height)
         {
-            return new Panel
+            return new RoundedPanel
             {
                 Left = left,
                 Top = top,
                 Width = width,
                 Height = height,
-                BackColor = Color.FromArgb(14, 20, 31)
+                BackColor = Color.FromArgb(13, 14, 18),
+                BorderColor = Color.FromArgb(36, 38, 46),
+                Radius = 16
             };
+        }
+
+
+        private void UpdateCurrentPageLightweight()
+        {
+            try
+            {
+                if (statusLabel != null)
+                {
+                    statusLabel.Text = "● ONLINE";
+                    statusLabel.ForeColor = Color.LimeGreen;
+                }
+
+                if (currentPage == "games" && selectedGame != null)
+                    RefreshGamePage();
+
+                // Perfil e servidores não são redesenhados automaticamente para não piscar.
+                // Ao clicar nas abas, os dados são carregados normalmente.
+            }
+            catch
+            {
+            }
+        }
+
+        private void OpenUrl(string url)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+            }
         }
 
         private void ShowHome()
         {
             content.Controls.Clear();
             currentPage = "home";
+            content.Invalidate();
 
-            titleLabel = MakeLabel("Início", 40, 30, 800, 48, 27, true);
-            subtitleLabel = MakeLabel("Notícias, eventos e status da ZTR Company", 42, 80, 800, 28, 11);
+            Label bigIcon = new Label
+            {
+                Text = "Z",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 76, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Width = 260,
+                Height = 130
+            };
+            bigIcon.Left = (content.Width - bigIcon.Width) / 2;
+            bigIcon.Top = 90;
 
-            Panel eventsPanel = MakeCard(40, 120, content.Width - 80, 130);
-            Label eventsTitle = MakeLabel("Eventos", 18, 12, 500, 28, 15, true);
-            Label eventsBody = MakeLabel(GetEventsText(), 18, 45, eventsPanel.Width - 36, 75, 10);
-            eventsPanel.Controls.Add(eventsTitle);
-            eventsPanel.Controls.Add(eventsBody);
+            Label brand = new Label
+            {
+                Text = "ZTR COMPANY",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 46, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Width = 720,
+                Height = 72
+            };
+            brand.Left = (content.Width - brand.Width) / 2;
+            brand.Top = bigIcon.Bottom - 4;
 
-            newsBox = MakeBox(40, 270, content.Width - 80, Math.Max(220, content.Height - 320));
+            Label launcher = new Label
+            {
+                Text = "L A U N C H E R",
+                ForeColor = Color.FromArgb(220, 222, 228),
+                Font = new Font("Segoe UI", 22, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Width = 520,
+                Height = 45
+            };
+            launcher.Left = (content.Width - launcher.Width) / 2;
+            launcher.Top = brand.Bottom - 4;
 
+            Label slogan = new Label
+            {
+                Text = "Seu universo. Sua experiência. Nosso launcher.",
+                ForeColor = Color.FromArgb(150, 152, 158),
+                Font = new Font("Segoe UI", 12, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Width = 650,
+                Height = 34
+            };
+            slogan.Left = (content.Width - slogan.Width) / 2;
+            slogan.Top = launcher.Bottom + 6;
+
+            ZButton mainPlay = new ZButton
+            {
+                Text = "JOGAR",
+                Width = 450,
+                Height = 70,
+                NormalColor = Color.FromArgb(245, 245, 245),
+                HoverColor = Color.White,
+                PressColor = Color.FromArgb(210, 210, 210),
+                DisabledColor = Color.FromArgb(70, 70, 76),
+                ForeColor = Color.Black,
+                Font = new Font("Segoe UI", 20, FontStyle.Bold)
+            };
+            mainPlay.Left = (content.Width - mainPlay.Width) / 2 - 35;
+            mainPlay.Top = slogan.Bottom + 18;
+            mainPlay.Click += (s, e) => ShowGames();
+
+            ZButton drop = new ZButton
+            {
+                Text = "⌄",
+                Width = 70,
+                Height = 70,
+                NormalColor = Color.FromArgb(26, 27, 31),
+                HoverColor = Color.FromArgb(40, 42, 48),
+                PressColor = Color.FromArgb(58, 60, 66),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 24, FontStyle.Bold)
+            };
+            drop.Left = mainPlay.Right + 14;
+            drop.Top = mainPlay.Top;
+            drop.Click += (s, e) => ShowGames();
+
+            int cardsTop = mainPlay.Bottom + 52;
+            int gap = 20;
+            int cardW = Math.Max(260, (content.Width - 120 - gap * 2) / 3);
+            int cardH = 200;
+            int startX = 40;
+
+            Panel newsCard = MakePremiumCard(startX, cardsTop, cardW, cardH);
+            Panel highlightCard = MakePremiumCard(startX + cardW + gap, cardsTop, cardW, cardH);
+            Panel activityCard = MakePremiumCard(startX + (cardW + gap) * 2, cardsTop, cardW, cardH);
+
+            FillPremiumNewsCard(newsCard);
+            FillPremiumHighlightCard(highlightCard);
+            FillPremiumActivityCard(activityCard);
+
+            content.Controls.Add(bigIcon);
+            content.Controls.Add(brand);
+            content.Controls.Add(launcher);
+            content.Controls.Add(slogan);
+            content.Controls.Add(mainPlay);
+            content.Controls.Add(drop);
+            content.Controls.Add(newsCard);
+            content.Controls.Add(highlightCard);
+            content.Controls.Add(activityCard);
+
+            LayoutResponsive();
+        }
+
+        private Panel MakePremiumCard(int x, int y, int w, int h)
+        {
+            return new RoundedPanel
+            {
+                Left = x,
+                Top = y,
+                Width = w,
+                Height = h,
+                BackColor = Color.FromArgb(12, 13, 16),
+                BorderColor = Color.FromArgb(35, 37, 43),
+                Radius = 16
+            };
+        }
+
+        private void FillPremiumNewsCard(Panel card)
+        {
+            Label icon = MakeLabel("▰", 22, 20, 32, 30, 18, true);
+            Label title = MakeLabel("NOTÍCIAS", 62, 26, 200, 26, 11, true);
+            Label msg1 = MakeLabel("Bem-vindo ao ZTR Company Launcher!", 22, 75, card.Width - 44, 24, 9, true);
+            Label msg2 = MakeLabel("Fique por dentro das novidades.", 22, 108, card.Width - 44, 24, 9);
+            Label date = MakeLabel(DateTime.Now.ToString("dd/MM/yyyy"), 22, card.Height - 42, 120, 24, 9, true);
+            Label more = MakeLabel("Ver todas  ›", card.Width - 130, card.Height - 42, 110, 24, 9, true);
+            more.Cursor = Cursors.Hand;
+            more.Click += (s, e) => ShowHomeNewsList();
+
+            card.Cursor = Cursors.Hand;
+            card.Click += (s, e) => ShowHomeNewsList();
+
+            card.Controls.Add(icon);
+            card.Controls.Add(title);
+            card.Controls.Add(msg1);
+            card.Controls.Add(msg2);
+            card.Controls.Add(date);
+            card.Controls.Add(more);
+        }
+
+        private void FillPremiumHighlightCard(Panel card)
+        {
+            Label icon = MakeLabel("☆", 22, 20, 32, 30, 18, true);
+            Label title = MakeLabel("DESTAQUES", 62, 26, 200, 26, 11, true);
+
+            Panel thumb = new RoundedPanel
+            {
+                Left = 22,
+                Top = 72,
+                Width = 170,
+                Height = 88,
+                BackColor = Color.FromArgb(28, 31, 38),
+                BorderColor = Color.FromArgb(48, 52, 60),
+                Radius = 10
+            };
+
+            Label car = new Label
+            {
+                Text = "RACE\nLOW POLY",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 15, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Dock = DockStyle.Fill
+            };
+            thumb.Controls.Add(car);
+
+            Label novo = MakeLabel("NOVO JOGO", 210, 78, card.Width - 230, 24, 9);
+            Label game = MakeLabel("RACE LOW POLY", 210, 106, card.Width - 230, 28, 13, true);
+            Label desc = MakeLabel("Disponível agora!", 210, 138, card.Width - 230, 24, 9);
+            Label more = MakeLabel("Ver mais  ›", card.Width - 130, card.Height - 42, 110, 24, 9, true);
+            more.Cursor = Cursors.Hand;
+            more.Click += (s, e) => ShowGames();
+
+            card.Cursor = Cursors.Hand;
+            card.Click += (s, e) => ShowGames();
+
+            card.Controls.Add(icon);
+            card.Controls.Add(title);
+            card.Controls.Add(thumb);
+            card.Controls.Add(novo);
+            card.Controls.Add(game);
+            card.Controls.Add(desc);
+            card.Controls.Add(more);
+        }
+
+        private void FillPremiumActivityCard(Panel card)
+        {
+            Label icon = MakeLabel("⌁", 22, 20, 32, 30, 18, true);
+            Label title = MakeLabel("ATIVIDADE", 62, 26, 200, 26, 11, true);
+
+            string[] items = { "Launcher atualizado", "Verificando arquivos", "Sistema otimizado" };
+            for (int i = 0; i < items.Length; i++)
+            {
+                Label check = MakeLabel("●", 22, 72 + i * 36, 26, 24, 10, true);
+                check.ForeColor = Color.LimeGreen;
+                Label text = MakeLabel(items[i], 52, 72 + i * 36, card.Width - 130, 24, 9, true);
+                Label date = MakeLabel(i < 2 ? "Hoje" : "Ontem", card.Width - 75, 72 + i * 36, 60, 24, 9);
+                card.Controls.Add(check);
+                card.Controls.Add(text);
+                card.Controls.Add(date);
+            }
+
+            Label more = MakeLabel("Ver histórico  ›", card.Width - 160, card.Height - 42, 140, 24, 9, true);
+            more.Cursor = Cursors.Hand;
+            more.Click += (s, e) => ShowServers();
+
+            card.Cursor = Cursors.Hand;
+            card.Click += (s, e) => ShowServers();
+
+            card.Controls.Add(icon);
+            card.Controls.Add(title);
+            card.Controls.Add(more);
+        }
+
+
+        private void ShowHomeNewsList()
+        {
+            content.Controls.Clear();
+            currentPage = "home";
+
+            titleLabel = MakeLabel("Notícias", 40, 35, 800, 48, 27, true);
+            subtitleLabel = MakeLabel("Últimas novidades da ZTR Company", 42, 86, 900, 28, 11);
+
+            Panel card = MakeCard(40, 135, content.Width - 80, content.Height - 190);
+            TextBox box = MakeBox(25, 25, card.Width - 50, card.Height - 50);
+            box.Text = "";
+
+            if (onlineData?.news != null && onlineData.news.Count > 0)
+            {
+                foreach (NewsData n in onlineData.news)
+                {
+                    box.AppendText($"[{n.type.ToUpper()}] {n.title}{Environment.NewLine}");
+                    box.AppendText(n.message + Environment.NewLine);
+                    if (!string.IsNullOrWhiteSpace(n.url))
+                        box.AppendText("Link: " + n.url + Environment.NewLine);
+                    box.AppendText(Environment.NewLine);
+                }
+            }
+            else
+            {
+                box.Text = "Nenhuma notícia disponível no momento.";
+            }
+
+            card.Controls.Add(box);
             content.Controls.Add(titleLabel);
             content.Controls.Add(subtitleLabel);
-            content.Controls.Add(eventsPanel);
-            content.Controls.Add(newsBox);
-
-            FillNews();
-            LayoutResponsive();
+            content.Controls.Add(card);
         }
 
         private string GetEventsText()
@@ -579,6 +1048,7 @@ namespace ZTRCompanyLauncher
         {
             content.Controls.Clear();
             currentPage = "profile";
+            content.Invalidate();
 
             if (string.IsNullOrWhiteSpace(config.authToken))
             {
@@ -1016,11 +1486,12 @@ namespace ZTRCompanyLauncher
         {
             content.Controls.Clear();
             currentPage = "servers";
+            content.Invalidate();
 
             await LoadLiveServerStatus();
 
             titleLabel = MakeLabel("🌐 Servidores", 40, 30, 800, 48, 27, true);
-            subtitleLabel = MakeLabel("Status real: PostgreSQL + heartbeat + ping real", 42, 80, 900, 28, 11);
+            subtitleLabel = MakeLabel("Todos os Servidores", 42, 80, 900, 28, 11);
 
             FlowLayoutPanel serversFlow = new FlowLayoutPanel
             {
@@ -1052,11 +1523,13 @@ namespace ZTRCompanyLauncher
                     "Pessoas jogando agora"
                 ));
 
-                Panel usersCard = new Panel
+                Panel usersCard = new RoundedPanel
                 {
                     Width = Math.Max(850, serversFlow.Width - 35),
                     Height = 360,
-                    BackColor = Color.FromArgb(14, 20, 31),
+                    BackColor = Color.FromArgb(13, 14, 18),
+                    BorderColor = Color.FromArgb(36, 38, 46),
+                    Radius = 16,
                     Margin = new Padding(0, 0, 0, 14)
                 };
 
@@ -1175,11 +1648,13 @@ namespace ZTRCompanyLauncher
 
         private Panel BuildLiveServerCard(string name, bool online, int pingMs, int playersOnline, int maxPlayers, string description)
         {
-            Panel card = new Panel
+            Panel card = new RoundedPanel
             {
                 Width = Math.Max(700, content.Width - 115),
                 Height = 115,
-                BackColor = Color.FromArgb(14, 20, 31),
+                BackColor = Color.FromArgb(13, 14, 18),
+                BorderColor = Color.FromArgb(36, 38, 46),
+                Radius = 16,
                 Margin = new Padding(0, 0, 0, 14)
             };
 
@@ -1252,16 +1727,19 @@ namespace ZTRCompanyLauncher
         {
             content.Controls.Clear();
             currentPage = "games";
+            content.Invalidate();
 
             titleLabel = MakeLabel("Biblioteca", 40, 28, 780, 48, 27, true);
 
-            Panel leftPanel = new Panel
+            Panel leftPanel = new RoundedPanel
             {
                 Left = 40,
                 Top = 92,
                 Width = 350,
                 Height = content.Height - 115,
-                BackColor = Color.FromArgb(14, 20, 31)
+                BackColor = Color.FromArgb(13, 14, 18),
+                BorderColor = Color.FromArgb(36, 38, 46),
+                Radius = 16
             };
 
             gameList = new FlowLayoutPanel
@@ -1276,13 +1754,15 @@ namespace ZTRCompanyLauncher
 
             leftPanel.Controls.Add(gameList);
 
-            detailsPanel = new Panel
+            detailsPanel = new RoundedPanel
             {
                 Left = 430,
                 Top = 92,
                 Width = content.Width - 468,
                 Height = content.Height - 115,
-                BackColor = Color.FromArgb(14, 20, 31)
+                BackColor = Color.FromArgb(13, 14, 18),
+                BorderColor = Color.FromArgb(36, 38, 46),
+                Radius = 16
             };
 
             bannerBox = new PictureBox
@@ -2428,6 +2908,89 @@ del ""%~f0""
         {
             string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(configFile, json);
+        }
+
+
+        public class RoundedPanel : Panel
+        {
+            public int Radius { get; set; } = 14;
+            public Color BorderColor { get; set; } = Color.FromArgb(40, 42, 50);
+
+            public RoundedPanel()
+            {
+                DoubleBuffered = true;
+                BackColor = Color.FromArgb(14, 15, 18);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+                Rectangle rect = new Rectangle(0, 0, Width - 1, Height - 1);
+                using GraphicsPath path = RoundedRect(rect, Radius);
+                using SolidBrush brush = new SolidBrush(BackColor);
+                using Pen pen = new Pen(BorderColor, 1);
+
+                e.Graphics.FillPath(brush, path);
+                e.Graphics.DrawPath(pen, path);
+            }
+
+            private GraphicsPath RoundedRect(Rectangle bounds, int radius)
+            {
+                int d = radius * 2;
+                GraphicsPath path = new GraphicsPath();
+
+                path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+                path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
+                path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+                path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
+                path.CloseFigure();
+
+                return path;
+            }
+        }
+
+        public class SteamContentPanel : Panel
+        {
+            public SteamContentPanel()
+            {
+                DoubleBuffered = true;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+                using LinearGradientBrush bg = new LinearGradientBrush(
+                    ClientRectangle,
+                    Color.FromArgb(10, 11, 14),
+                    Color.FromArgb(2, 3, 5),
+                    LinearGradientMode.ForwardDiagonal
+                );
+                e.Graphics.FillRectangle(bg, ClientRectangle);
+
+                using Pen p1 = new Pen(Color.FromArgb(18, 255, 255, 255), 1);
+                using Pen p2 = new Pen(Color.FromArgb(12, 255, 255, 255), 2);
+
+                for (int i = -Height; i < Width + Height; i += 230)
+                {
+                    Point[] poly =
+                    {
+                        new Point(i, 0),
+                        new Point(i + 170, 0),
+                        new Point(i - 260, Height),
+                        new Point(i - 430, Height)
+                    };
+                    e.Graphics.DrawPolygon(p1, poly);
+                }
+
+                for (int i = -Height; i < Width + Height; i += 420)
+                {
+                    e.Graphics.DrawLine(p2, i, Height, i + Height, 0);
+                }
+            }
         }
 
         public class NotifyForm : Form

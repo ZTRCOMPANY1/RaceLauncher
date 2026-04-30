@@ -122,7 +122,7 @@ namespace ZTRCompanyLauncher
             BackColor = Color.FromArgb(5, 6, 8);
             KeyPreview = true;
             DoubleBuffered = true;
-            this.Icon = new Icon("ztr_logo.ico");
+            LoadLauncherIcon();
             FormBorderStyle = FormBorderStyle.None;
             Padding = new Padding(1);
 
@@ -191,6 +191,25 @@ namespace ZTRCompanyLauncher
                 if (!HasAccount() || !IsLoggedIn())
                     ShowProfile();
             };
+        }
+
+
+        private void LoadLauncherIcon()
+        {
+            try
+            {
+                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ztr_logo.ico");
+
+                if (!File.Exists(iconPath))
+                    iconPath = Path.Combine(Application.StartupPath, "ztr_logo.ico");
+
+                if (File.Exists(iconPath))
+                    Icon = new Icon(iconPath);
+            }
+            catch
+            {
+                // Se o ícone não existir, o launcher abre normal.
+            }
         }
 
         private void BuildInterface()

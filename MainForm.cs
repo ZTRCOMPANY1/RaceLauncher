@@ -331,7 +331,7 @@ namespace ZTRCompanyLauncher
                 if (WindowState == FormWindowState.Maximized)
                 {
                     WindowState = FormWindowState.Normal;
-                    Size = new Size(1247, 886);
+                    Size = new Size(1340, 886);
                     CenterToScreen();
                 }
                 else
@@ -2637,7 +2637,7 @@ namespace ZTRCompanyLauncher
                 }
             }
 
-            apiBaseUrl = "https://servidor-ztr-company-launcher.onrender.com";
+            apiBaseUrl = "https://servidor-ztr-company-launcher-lowp.onrender.com";
             return apiBaseUrl;
         }
 

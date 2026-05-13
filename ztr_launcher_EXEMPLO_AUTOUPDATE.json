@@ -5,7 +5,7 @@
   "serverStatusUrl": "https://servidor-ztr-company-launcher.onrender.com/status",
   "launcherHeartbeatUrl": "https://servidor-ztr-company-launcher.onrender.com/heartbeat/launcher",
   "gameHeartbeatUrl": "https://servidor-ztr-company-launcher.onrender.com/heartbeat/game",
-  "authApiUrl": "https://servidor-ztr-company-launcher.onrender.com",
+  "authApiUrl": "https://servidor-ztr-company-launcher-lowp.onrender.com",
   "news": [],
   "events": [],
   "games": []

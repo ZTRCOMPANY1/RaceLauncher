@@ -7,10 +7,10 @@ Usei seus arquivos:
 ## Importante sobre seu ztr_launcher.json
 O campo estava errado:
 serverStatusUrl estava como:
-https://servidor-ztr-company-launcher.onrender.com/heartbeat/game/status
+https://servidor-ztr-company-launcher-lowp.onrender.com/heartbeat/game/status
 
 O correto é:
-https://servidor-ztr-company-launcher.onrender.com/status
+https://servidor-ztr-company-launcher-lowp.onrender.com/status
 
 Já deixei corrigido em:
 ztr_launcher_CORRIGIDO.json

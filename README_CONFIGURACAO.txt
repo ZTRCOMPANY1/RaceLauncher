@@ -15,7 +15,7 @@ Arquivos principais:
 - Heartbeat do jogo para /heartbeat/game enquanto o jogo estiver aberto.
 - Aba Servidores lê /status e atualiza sozinha a cada 5 segundos.
 - Fallback direto para:
-  https://servidor-ztr-company-launcher.onrender.com/status
+  https://servidor-ztr-company-launcher-lowp.onrender.com/status
 
 ## Render
 Build Command:
@@ -26,7 +26,7 @@ node server.js
 
 ## Teste
 Abra:
-https://servidor-ztr-company-launcher.onrender.com/status
+https://servidor-ztr-company-launcher-lowp.onrender.com/status
 
 Abra o launcher: launcherOnline deve subir.
 Clique em jogar: gameOnline deve subir.
